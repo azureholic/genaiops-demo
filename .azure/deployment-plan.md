@@ -1,6 +1,6 @@
 # GenAIOps Azure Deployment Plan
 
-**Status:** Ready for Validation
+**Status:** Validated
 **Authorization:** The user approved sequential implementation of Task 13 from `tasks/13-azure-infrastructure-and-containers.md`. This plan covers preparation and validation only; it does not authorize an Azure deployment.
 
 ## 1. Workload Summary
@@ -75,9 +75,15 @@ GenAIOps is a .NET 10 and React reference application for versioned Azure AI Fou
 1. Build and test the .NET solution and web application.
 2. Build every container image.
 3. Verify containers run as non-root and health endpoints respond.
-4. Run `az bicep build` and `az bicep lint`.
-5. Run template validation or what-if only when an authenticated Azure context is explicitly provided.
-6. Run security and static checks against generated Bicep and Dockerfiles.
+4. Run core Azure CLI validation:
+   - [x] Confirm the Azure CLI is installed and authenticated to the intended subscription.
+   - [x] Compile `Infrastructure\main.bicep`.
+   - [x] Validate the template at resource-group scope.
+   - [x] Run a resource-group what-if preview and confirm there are no deletes.
+5. Run `az bicep lint` and compile `Infrastructure\main.dev.bicepparam`.
+6. Review assigned Azure Policy constraints for the active subscription.
+7. Confirm region availability and relevant quota for planned resource types and the model deployment.
+8. Run security and static role checks against generated Bicep and Dockerfiles.
 
 ## 9. Outputs
 
@@ -110,6 +116,43 @@ Task 13 is complete when container and Bicep builds pass, least-privilege identi
 
 ## 12. Validation Proof
 
+Live Azure validation completed at `2026-09-23T14:50:32Z` using the existing
+`RBR-NonProd` Azure CLI context and the existing `DefaultResourceGroup-SEC` resource
+group in Sweden Central. No resources were deployed or changed.
+
+- [x] Shared Azure validation recipe:
+  `validate-deployment.ps1 -Scope group -ResourceGroup DefaultResourceGroup-SEC
+  -Template Infrastructure\main.bicep -Parameters Infrastructure\main.dev.bicepparam`.
+  Azure CLI authentication, Bicep compilation, ARM resource-group validation, and
+  what-if all passed.
+- [x] What-if result: 54 creates, 0 modifications, and 0 deletes.
+- [x] `az bicep lint --file Infrastructure\main.bicep`.
+- [x] `az bicep build-params --file Infrastructure\main.dev.bicepparam`.
+- [x] Applicable policy query:
+  `az policy assignment list --scope <validation-resource-group-scope>
+  --disable-scope-strict-match true`; no policy assignments were returned.
+- [x] Provider metadata confirms Sweden Central availability for Container Apps,
+  Container Registry, Cosmos DB, Cognitive Services, Key Vault, Application Insights,
+  and Log Analytics.
+- [x] `az cognitiveservices model list --location swedencentral` confirms
+  `gpt-4.1-mini` version `2025-04-14`, `GlobalStandard`, and maximum deployment
+  capacity 3; the requested capacity is 1.
+- [x] `az cognitiveservices account list-skus --kind OpenAI --location
+  swedencentral` confirms the `S0` SKU.
+- [x] Azure quota checks report no fixed limits for ACR, Cosmos DB, Key Vault,
+  Application Insights, or Log Analytics. The Container Apps usage endpoint returned
+  no regional usage entries. The model catalogue and ARM validation accepted the
+  requested Azure OpenAI capacity.
+- [x] `dotnet build GenAIOps.slnx --configuration Release --no-restore`: succeeded
+  with 0 warnings and 0 errors.
+- [x] `npm run build` in `src\Web`: succeeded.
+- [x] Static RBAC verification reconfirmed resource-scoped ACR Pull, Key Vault Secrets
+  User, Monitoring Metrics Publisher, Cognitive Services OpenAI User, Azure AI
+  Developer, and Cosmos DB Built-in Data Contributor assignments. No generic Owner or
+  Contributor workload role is present.
+
+Previously completed local validation remains valid:
+
 - [x] Azure CLI 2.89.1 and Bicep CLI 0.42.1 available.
 - [x] `az bicep build --file Infrastructure\main.bicep`.
 - [x] `az bicep lint --file Infrastructure\main.bicep`.
@@ -124,8 +167,8 @@ Task 13 is complete when container and Bicep builds pass, least-privilege identi
   promotion engine, and rollback engine.
 - [x] Image configuration inspection confirms non-root users for all six images.
 - [x] API and web container health probes returned HTTP 200.
-- [ ] ARM validation, Azure Policy validation, and what-if: intentionally not run
-  because Task 13 is offline preparation and no live Azure credentials were supplied.
+- [x] ARM validation, Azure Policy review, regional availability checks, quota
+  preflight, and what-if completed using the current Azure CLI context.
 
 ## 13. Role Assignment Verification
 
@@ -156,5 +199,5 @@ Validation on 2026-09-23 was local and did not deploy or mutate Azure resources:
   (354 milliseconds scenario time), ending with v2 restored.
 - .NET formatting checks and NuGet/npm vulnerability checks passed; no vulnerable
   packages were reported.
-- ARM validation, Azure Policy validation, what-if, and deployment remain unexecuted.
-  The plan status therefore remains `Ready for Validation`.
+- ARM validation, Azure Policy review, regional availability checks, quota preflight,
+  and what-if were completed later under Section 12. Deployment remains unexecuted.
