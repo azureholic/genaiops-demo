@@ -1,0 +1,20 @@
+#root {
+  min-height: 100vh;
+}
+
+main {
+  display: grid;
+  gap: 2rem;
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 4rem 2rem;
+}
+
+header {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.status-card {
+  max-width: 32rem;
+}

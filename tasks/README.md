@@ -23,9 +23,9 @@ These files break the specification into commit-sized implementation tasks. Comp
 | Task | Title | Depends on | Status |
 |------|-------|------------|--------|
 | 00 | Initial repository setup | None | complete |
-| 01 | Solution architecture and project scaffold | 00 | ready |
-| 02 | Prompt versions and evaluation fixtures | 01 | blocked |
-| 03 | Cosmos DB persistence and agent registry | 01 | blocked |
+| 01 | Solution architecture and project scaffold | 00 | complete |
+| 02 | Prompt versions and evaluation fixtures | 01 | ready |
+| 03 | Cosmos DB persistence and agent registry | 01 | ready |
 | 04 | Foundry agent gateway and chat API | 02, 03 | blocked |
 | 05 | Shadow testing and evaluation worker | 04 | blocked |
 | 06 | Metrics aggregation and continuous evaluation | 05 | blocked |
