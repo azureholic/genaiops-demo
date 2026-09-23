@@ -262,3 +262,57 @@ public sealed class RollbackEndpointTests
         Assert.True(replayBody.RootElement.GetProperty("replayed").GetBoolean());
     }
 }
+
+public sealed class ReleaseHistoryEndpointTests
+{
+    [Fact]
+    public async Task Releases_endpoint_returns_newest_first_with_gate_evidence()
+    {
+        await using WebApplicationFactory<Program> factory =
+            PromotionEndpointTests.CreateFactory();
+        PromotionEndpointTests.SeededRegistry seeded =
+            await PromotionEndpointTests.SeedAsync(
+                factory,
+                "release-history-api",
+                "v2",
+                0.94,
+                0.97,
+                0.95);
+        using HttpClient client = factory.CreateClient();
+        using HttpResponseMessage promotion = await PromotionEndpointTests.PostAsync(
+            client,
+            "/api/promote/v2",
+            "release-history-api",
+            "history-promote-v2",
+            seeded.ETag);
+        promotion.EnsureSuccessStatusCode();
+
+        using HttpResponseMessage response =
+            await client.GetAsync("/api/releases?registryId=release-history-api&pageSize=10");
+        using JsonDocument body = await PromotionEndpointTests.ReadJsonAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        JsonElement release = Assert.Single(
+            body.RootElement.GetProperty("releases").EnumerateArray());
+        Assert.Equal("Promotion", release.GetProperty("operation").GetString());
+        Assert.Equal("v2", release.GetProperty("promptVersion").GetString());
+        Assert.Equal("api-test", release.GetProperty("actor").GetString());
+        Assert.True(release.GetProperty("gateEvidence").GetProperty("passed").GetBoolean());
+        Assert.Equal(
+            "v1",
+            release.GetProperty("previousProduction").GetProperty("promptVersion").GetString());
+    }
+
+    [Fact]
+    public async Task Releases_endpoint_rejects_invalid_page_size()
+    {
+        await using WebApplicationFactory<Program> factory =
+            PromotionEndpointTests.CreateFactory();
+        using HttpClient client = factory.CreateClient();
+
+        using HttpResponseMessage response =
+            await client.GetAsync("/api/releases?registryId=default&pageSize=101");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+}

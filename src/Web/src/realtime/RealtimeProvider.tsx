@@ -69,6 +69,7 @@ export function RealtimeProvider({
       setRecentReleases((current) => [update, ...current].slice(0, 5))
       void client.invalidateQueries({ queryKey: queryKeys.versions })
       void client.invalidateQueries({ queryKey: queryKeys.metrics })
+      void client.invalidateQueries({ queryKey: queryKeys.releases })
     })
     connection.onreconnecting(() => !disposed && setStatus('connecting'))
     connection.onreconnected(() => !disposed && setStatus('connected'))

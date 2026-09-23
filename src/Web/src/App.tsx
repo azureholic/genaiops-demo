@@ -31,6 +31,8 @@ import { RealtimeProvider, useRealtime, type RealtimeConnectionFactory } from '.
 import './App.css'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
+const PromptRegistryPage = lazy(() => import('./pages/PromptRegistryPage'))
+const ReleaseHistoryPage = lazy(() => import('./pages/ReleaseHistoryPage'))
 
 const HomeIcon = bundleIcon(HomeFilled, HomeRegular)
 const RegistryIcon = bundleIcon(BeakerFilled, BeakerRegular)
@@ -138,10 +140,10 @@ function AppShell() {
         <Suspense fallback={<div className="page-loading"><Spinner label="Loading page" /></div>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/prompts" element={<PlannedPage title="Prompt Registry" />} />
+            <Route path="/prompts" element={<PromptRegistryPage />} />
             <Route path="/shadow-testing" element={<PlannedPage title="Shadow Testing" />} />
             <Route path="/evaluations" element={<PlannedPage title="Evaluation Dashboard" />} />
-            <Route path="/releases" element={<PlannedPage title="Release History" />} />
+            <Route path="/releases" element={<ReleaseHistoryPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

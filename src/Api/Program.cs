@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using GenAIOps.Api.Realtime;
 using GenAIOps.Application.Chat;
@@ -399,6 +400,36 @@ app.MapPost(
     .ProducesProblem(StatusCodes.Status412PreconditionFailed);
 
 app.MapGet(
+    "/api/releases",
+    async (
+        string? registryId,
+        int? pageSize,
+        string? continuationToken,
+        IRepository<ReleaseRecord> releases,
+        CancellationToken cancellationToken) =>
+    {
+        string resolvedRegistryId = string.IsNullOrWhiteSpace(registryId) ? "default" : registryId;
+        RepositoryPage<ReleaseRecord> page = await releases.QueryAsync(
+            new RecordQuery(
+                resolvedRegistryId,
+                Type: "release",
+                PageSize: pageSize ?? 50,
+                ContinuationToken: continuationToken),
+            cancellationToken);
+        return Results.Ok(
+            new ReleasesResponse(
+                resolvedRegistryId,
+                page.Items
+                    .Select(item => item.Value)
+                    .OrderByDescending(release => release.CreatedAt)
+                    .ToArray(),
+                page.ContinuationToken));
+    })
+    .WithName("GetReleases")
+    .Produces<ReleasesResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest);
+
+app.MapGet(
     "/api/metrics",
     async (
         string? registryId,
@@ -571,6 +602,10 @@ if (builder.Configuration.GetValue<bool>("Chat:SeedLocalProduction"))
             builder.Configuration["Chat:LocalCandidate:AgentVersion"] ?? "v2",
             production.ETag);
     }
+
+    IRepository<PromptVersionRecord> promptVersions =
+        scope.ServiceProvider.GetRequiredService<IRepository<PromptVersionRecord>>();
+    await SeedLocalPromptVersionsAsync(promptVersions, metricsRepositoryRoot, registryId);
 }
 
 app.Run();
@@ -591,6 +626,39 @@ static string? FindRepositoryRoot(string startPath)
     }
 
     return null;
+}
+
+static async Task SeedLocalPromptVersionsAsync(
+    IRepository<PromptVersionRecord> repository,
+    string repositoryRoot,
+    string registryId)
+{
+    foreach (string version in new[] { "v1", "v2", "v3" })
+    {
+        if (await repository.GetAsync(version, registryId) is not null)
+        {
+            continue;
+        }
+
+        string metadataPath = Path.Combine(repositoryRoot, "Prompts", version, "metadata.json");
+        await using FileStream stream = File.OpenRead(metadataPath);
+        LocalPromptMetadata metadata = (await JsonSerializer.DeserializeAsync<LocalPromptMetadata>(
+            stream,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)))!;
+        await repository.CreateAsync(
+            new PromptVersionRecord(
+                version,
+                registryId,
+                version,
+                metadata.Description,
+                $"local:{version}",
+                PromptVersionLifecycle.Draft,
+                File.GetLastWriteTimeUtc(metadataPath),
+                metadata.ExpectedMetrics.ToDictionary(
+                    metric => metric.Key,
+                    metric => metric.Value > 1 ? metric.Value / 100 : metric.Value,
+                    StringComparer.Ordinal)));
+    }
 }
 
 static string ResolveCorrelationId(HttpContext context)
@@ -628,6 +696,11 @@ static ReleaseApiResponse ToReleaseResponse(ReleaseWorkflowResult result) =>
 
 internal sealed record ChatApiRequest(string? Message, string? RegistryId = null);
 
+internal sealed record LocalPromptMetadata(
+    string Version,
+    string Description,
+    IReadOnlyDictionary<string, double> ExpectedMetrics);
+
 internal sealed record ReleaseApiRequest(string? Actor, string? RegistryId = null);
 
 internal sealed record AbTestApiRequest(
@@ -645,6 +718,11 @@ internal sealed record ReleaseApiResponse(
     AgentAssignment? Production,
     ReleaseRecord Release,
     bool Replayed);
+
+internal sealed record ReleasesResponse(
+    string RegistryId,
+    IReadOnlyList<ReleaseRecord> Releases,
+    string? ContinuationToken);
 
 internal sealed record EvaluationsResponse(
     string RegistryId,

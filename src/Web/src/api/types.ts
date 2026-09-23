@@ -70,3 +70,51 @@ export interface ReleaseUpdated {
   lifecycle: string
   occurredAt: string
 }
+
+export interface ReleaseGateEvidence {
+  metricSnapshotId: string
+  windowStart: string
+  windowEnd: string
+  sampleCount: number
+  observed: Record<string, number>
+  thresholds: Record<string, number>
+  passed: boolean
+  reasons: string[]
+}
+
+export interface ReleaseRecord {
+  id: string
+  registryId: string
+  operation: 'Promotion' | 'Rollback'
+  promptVersion: string
+  agentId: string
+  lifecycle: 'Created' | 'Promoted' | 'Rejected' | 'RolledBack' | 'Superseded'
+  actor: string
+  createdAt: string
+  previousProduction: AgentAssignment | null
+  newProduction: AgentAssignment | null
+  rollbackTarget: AgentAssignment | null
+  gateEvidence: ReleaseGateEvidence | null
+}
+
+export interface ReleasesResponse {
+  registryId: string
+  releases: ReleaseRecord[]
+  continuationToken: string | null
+}
+
+export interface ReleaseMutationResponse {
+  registryId: string
+  eTag: string
+  production: AgentAssignment | null
+  release: ReleaseRecord
+  replayed: boolean
+}
+
+export interface ProblemDetails {
+  title?: string
+  detail?: string
+  code?: string
+  correlationId?: string
+  gateEvidence?: ReleaseGateEvidence
+}

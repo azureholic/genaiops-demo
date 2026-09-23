@@ -214,6 +214,187 @@
   color: var(--cp-text-muted);
 }
 
+.registry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.registry-card {
+  position: relative;
+  align-content: start;
+  border: 1px solid var(--cp-border);
+  border-top: 0.25rem solid var(--cp-border-strong);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-shadow);
+}
+
+.registry-card--production {
+  border-top-color: var(--cp-success);
+}
+
+.registry-card--candidate {
+  border-top-color: var(--cp-warning);
+}
+
+.registry-card--experiment {
+  border-top-color: var(--cp-link);
+}
+
+.metric-comparison {
+  display: grid;
+  margin: 0.75rem 0;
+  border-top: 1px solid var(--cp-border);
+  font-size: 0.875rem;
+}
+
+.metric-comparison > div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1.4fr) repeat(2, minmax(4.5rem, 1fr));
+  gap: 0.5rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--cp-border);
+}
+
+.metric-comparison__header {
+  color: var(--cp-text-muted);
+  font-weight: 600;
+}
+
+.gate-failure ul,
+.evidence-details ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.release-timeline {
+  position: relative;
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0 0 0 1.75rem;
+  list-style: none;
+}
+
+.release-timeline::before {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  left: 0.45rem;
+  width: 0.125rem;
+  content: "";
+  background: var(--cp-border-strong);
+}
+
+.release-timeline > li {
+  position: relative;
+  min-width: 0;
+}
+
+.timeline-marker {
+  position: absolute;
+  z-index: 1;
+  top: 1.15rem;
+  left: -1.7rem;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 0.15rem solid var(--cp-bg);
+  border-radius: 50%;
+  background: var(--cp-border-strong);
+}
+
+.timeline-marker--success {
+  background: var(--cp-success);
+}
+
+.timeline-marker--failed {
+  background: var(--cp-danger);
+}
+
+.release-card {
+  min-width: 0;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-shadow);
+}
+
+.release-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.release-card__heading h2 {
+  margin: 0;
+}
+
+.release-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.release-details > div {
+  min-width: 0;
+}
+
+.release-details dt {
+  color: var(--cp-text-muted);
+  font-size: 0.75rem;
+}
+
+.release-details dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.evidence-details {
+  padding: 0.75rem;
+  border: 1px solid var(--cp-border);
+  border-radius: 0.375rem;
+  background: var(--cp-surface-soft);
+}
+
+.evidence-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.evidence-details summary:focus-visible {
+  outline: 0.15rem solid var(--cp-accent);
+  outline-offset: 0.2rem;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.confirmation-content {
+  display: grid;
+  gap: 1rem;
+}
+
+.confirmation-target {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--cp-border-strong);
+  border-radius: 0.375rem;
+  background: var(--cp-surface-soft);
+}
+
 .placeholder-page,
 .fatal-error {
   display: grid;
@@ -279,6 +460,10 @@
   .trend-card {
     grid-row: auto;
   }
+
+  .registry-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 47.99rem) {
@@ -323,6 +508,14 @@
     flex-direction: column;
   }
 
+  .heading-actions {
+    justify-content: stretch;
+  }
+
+  .heading-actions > * {
+    flex: 1 1 auto;
+  }
+
   .assignment-grid,
   .metric-grid {
     grid-template-columns: 1fr;
@@ -330,6 +523,20 @@
 
   .product-subtitle {
     display: none;
+  }
+
+  .release-details,
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .release-card__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .metric-comparison {
+    overflow-x: auto;
   }
 }
 
