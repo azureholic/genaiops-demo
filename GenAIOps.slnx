@@ -7,6 +7,9 @@
   <Folder Name="/src/Api/">
     <Project Path="src/Api/GenAIOps.Api.csproj" />
   </Folder>
+  <Folder Name="/src/Demo/">
+    <Project Path="src/Demo/GenAIOps.Demo.csproj" />
+  </Folder>
   <Folder Name="/src/Workers/" />
   <Folder Name="/src/Workers/MetricsAggregator/">
     <Project Path="src/Workers/MetricsAggregator/GenAIOps.Workers.MetricsAggregator.csproj" />

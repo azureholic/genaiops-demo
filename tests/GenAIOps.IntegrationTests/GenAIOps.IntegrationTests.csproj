@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Api\GenAIOps.Api.csproj" />
+    <ProjectReference Include="..\..\src\Demo\GenAIOps.Demo.csproj" />
   </ItemGroup>
 
 </Project>

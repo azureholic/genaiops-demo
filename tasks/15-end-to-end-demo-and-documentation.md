@@ -1,6 +1,6 @@
 # Task 15: End-to-End Demo Validation and Documentation
 
-**Status:** blocked  
+**Status:** complete
 **Depends on:** Tasks 11, 12, and 14  
 **Commit subject:** `docs: finalize GenAIOps demonstration`
 
@@ -35,3 +35,21 @@ npm --prefix src\Web test -- --run
 npm --prefix src\Web run build
 az bicep build --file Infrastructure\main.bicep
 ```
+
+## Completion Evidence
+
+- `scripts\Invoke-EndToEndDemo.ps1 -NoBuild` completed all seven phases in
+  13.327 seconds wall-clock (354 milliseconds inside the scenario) and restored v2.
+- The smoke path uses labelled deterministic in-memory fixtures. The controlled v3
+  incident is isolated from live state and runs only after the unchanged production
+  quality gate rejects v3.
+- Fresh NuGet and npm restores used only the checked-in Microsoft package proxies.
+- Release build passed with zero warnings; 117 .NET tests passed.
+- Web lint/typecheck passed; 11 tests and the production build passed.
+- Prompt artifacts and three fixtures passed validation; deterministic v2 evaluation
+  passed at 94% task adherence, 97% groundedness, and 95% tool accuracy.
+- Bicep build, lint, and parameter compilation passed; four GitHub workflows passed
+  syntax, immutable-action, OIDC, permission, and concurrency checks.
+- `dotnet format` and verify-no-changes passed. NuGet transitive and npm high-severity
+  vulnerability checks found none. `git diff --check` passed.
+- Azure deployment was not run.

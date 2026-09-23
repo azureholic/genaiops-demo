@@ -139,3 +139,22 @@ Task 13 is complete when container and Bicep builds pass, least-privilege identi
 - No generic Owner, Contributor, or subscription-scoped workload role is assigned.
 - A local developer requires equivalent data-plane roles for authenticated local tests;
   no live role changes were made.
+
+## 14. Task 15 Offline Validation Evidence
+
+Validation on 2026-09-23 was local and did not deploy or mutate Azure resources:
+
+- Fresh NuGet and npm restores used the checked-in Microsoft package proxies only.
+- Release build passed with zero warnings; 117 .NET tests passed.
+- Web lint/typecheck, 11 tests, and production build passed.
+- Prompt artifact validation passed. Deterministic v2 evaluation passed with 94% task
+  adherence, 97% groundedness, and 95% tool accuracy.
+- Bicep build, lint, and development parameter compilation passed.
+- Four GitHub workflows passed syntax, immutable-action, OIDC, permission, and
+  concurrency validation.
+- The isolated smoke demo passed all seven phases in 13.327 seconds wall-clock
+  (354 milliseconds scenario time), ending with v2 restored.
+- .NET formatting checks and NuGet/npm vulnerability checks passed; no vulnerable
+  packages were reported.
+- ARM validation, Azure Policy validation, what-if, and deployment remain unexecuted.
+  The plan status therefore remains `Ready for Validation`.
