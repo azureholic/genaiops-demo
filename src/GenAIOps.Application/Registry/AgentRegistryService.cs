@@ -21,6 +21,13 @@ public interface IAgentRegistryService
         string agentId,
         string expectedETag,
         CancellationToken cancellationToken = default);
+
+    Task<RegistrySnapshot> AssignProductionAsync(
+        string registryId,
+        string agentId,
+        string promptVersion,
+        string expectedETag,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class AgentRegistryService(IRepository<AgentRegistryState> repository) : IAgentRegistryService
@@ -141,6 +148,61 @@ public sealed class AgentRegistryService(IRepository<AgentRegistryState> reposit
                 UnassignedAt = null,
             },
             Candidate = null,
+            History = history,
+            UpdatedAt = now,
+        };
+        StoredItem<AgentRegistryState> replaced =
+            await repository.ReplaceAsync(updated, current.ETag, cancellationToken);
+        return new RegistrySnapshot(replaced.Value, replaced.ETag);
+    }
+
+    public async Task<RegistrySnapshot> AssignProductionAsync(
+        string registryId,
+        string agentId,
+        string promptVersion,
+        string expectedETag,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(registryId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(agentId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(promptVersion);
+        ArgumentException.ThrowIfNullOrWhiteSpace(expectedETag);
+        StoredItem<AgentRegistryState> current =
+            await repository.GetAsync(registryId, registryId, cancellationToken)
+            ?? throw new RecordNotFoundException(nameof(AgentRegistryState), registryId, registryId);
+        EnsureExpectedETag(registryId, expectedETag, current.ETag);
+
+        if (current.Value.Production is { } production
+            && string.Equals(production.AgentId, agentId, StringComparison.Ordinal)
+            && string.Equals(production.PromptVersion, promptVersion, StringComparison.Ordinal))
+        {
+            return new RegistrySnapshot(current.Value, current.ETag);
+        }
+
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        List<AgentAssignment> history = [.. current.Value.History];
+        if (current.Value.Production is { } previousProduction)
+        {
+            history.Add(previousProduction with { UnassignedAt = now });
+        }
+
+        AgentAssignment? candidate = current.Value.Candidate;
+        if (candidate is not null
+            && string.Equals(candidate.AgentId, agentId, StringComparison.Ordinal)
+            && string.Equals(candidate.PromptVersion, promptVersion, StringComparison.Ordinal))
+        {
+            history.Add(candidate with { UnassignedAt = now });
+            candidate = null;
+        }
+
+        AgentRegistryState updated = current.Value with
+        {
+            Production = new AgentAssignment(
+                agentId,
+                promptVersion,
+                AssignmentSlot.Production,
+                now),
+            Candidate = candidate,
             History = history,
             UpdatedAt = now,
         };

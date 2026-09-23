@@ -49,7 +49,8 @@ public static class CosmosContainerDefinitions
         if (type == typeof(AgentRecord)
             || type == typeof(AgentRegistryState)
             || type == typeof(PromptVersionRecord)
-            || type == typeof(ReleaseRecord))
+            || type == typeof(ReleaseRecord)
+            || type == typeof(ReleaseCommandRecord))
         {
             return Registry;
         }

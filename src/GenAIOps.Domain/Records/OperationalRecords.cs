@@ -1,4 +1,5 @@
 using GenAIOps.Domain.Persistence;
+using GenAIOps.Domain.Registry;
 
 namespace GenAIOps.Domain.Records;
 
@@ -41,8 +42,34 @@ public enum ReleaseLifecycle
 {
     Created,
     Promoted,
+    Rejected,
     RolledBack,
     Superseded,
+}
+
+public enum ReleaseOperation
+{
+    Promotion,
+    Rollback,
+}
+
+public sealed record ReleaseCommandRecord(
+    string Id,
+    string PartitionKey,
+    string RegistryId,
+    string IdempotencyKey,
+    ReleaseOperation Operation,
+    string? PromptVersion,
+    string Actor,
+    string ExpectedETag,
+    AgentAssignment Target,
+    AgentAssignment? PreviousProduction,
+    ReleaseGateEvidence? GateEvidence,
+    DateTimeOffset CreatedAt) : IPersistedRecord
+{
+    public int SchemaVersion => 1;
+
+    public string Type => "releaseCommand";
 }
 
 public enum ShadowWorkLifecycle
@@ -131,16 +158,36 @@ public sealed record ExperimentRecord(
 public sealed record ReleaseRecord(
     string Id,
     string PartitionKey,
+    string RegistryId,
+    string IdempotencyKey,
+    ReleaseOperation Operation,
     string PromptVersion,
     string AgentId,
     ReleaseLifecycle Lifecycle,
+    string Actor,
     DateTimeOffset CreatedAt,
-    string? ReplacesReleaseId) : IPersistedRecord
+    AgentAssignment? PreviousProduction,
+    AgentAssignment? NewProduction,
+    AgentAssignment? RollbackTarget,
+    ReleaseGateEvidence? GateEvidence,
+    string ExpectedETag,
+    AgentRegistryState? ResultRegistry,
+    string? ResultETag) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 
     public string Type => "release";
 }
+
+public sealed record ReleaseGateEvidence(
+    string MetricSnapshotId,
+    DateTimeOffset WindowStart,
+    DateTimeOffset WindowEnd,
+    int SampleCount,
+    IReadOnlyDictionary<string, double> Observed,
+    IReadOnlyDictionary<string, double> Thresholds,
+    bool Passed,
+    IReadOnlyList<string> Reasons);
 
 public sealed record ChatRequestMetadataRecord(
     string Id,

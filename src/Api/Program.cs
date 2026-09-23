@@ -3,6 +3,7 @@ using GenAIOps.Application.Chat;
 using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
+using GenAIOps.Application.Releases;
 using GenAIOps.Application.Shadow;
 using GenAIOps.Domain.Prompts;
 using GenAIOps.Domain.Records;
@@ -10,6 +11,7 @@ using GenAIOps.Domain.Registry;
 using GenAIOps.Infrastructure.Chat;
 using GenAIOps.Infrastructure.Metrics;
 using GenAIOps.Infrastructure.Persistence;
+using GenAIOps.Infrastructure.Releases;
 using GenAIOps.Infrastructure.Shadow;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -95,6 +97,14 @@ builder.Services.AddLocalContinuousEvaluation(
         continuousProvider,
         "Fake",
         StringComparison.OrdinalIgnoreCase));
+builder.Services.AddReleaseWorkflows(
+    new QualityGateOptions(
+        builder.Configuration.GetValue("QualityGates:MinimumSamples", 3),
+        builder.Configuration.GetValue("QualityGates:MinimumTaskAdherence", 0.9),
+        builder.Configuration.GetValue("QualityGates:MinimumGroundedness", 0.9),
+        builder.Configuration.GetValue("QualityGates:MinimumToolAccuracy", 0.9),
+        builder.Configuration.GetValue("QualityGates:MaximumFailureRate", 0.05),
+        builder.Configuration.GetValue<double?>("QualityGates:MaximumLatencyMilliseconds")));
 if (!string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnoreCase))
 {
     builder.Services.AddHostedService<ContinuousEvaluationBackgroundService>();
@@ -194,6 +204,26 @@ app.UseExceptionHandler(errorApp =>
                 StatusCodes.Status400BadRequest,
                 "Invalid chat request",
                 "invalid_request"),
+            ReleaseValidationException release => (
+                StatusCodes.Status400BadRequest,
+                "Invalid release command",
+                release.Code),
+            ReleaseStateNotFoundException release => (
+                StatusCodes.Status404NotFound,
+                "Release state not found",
+                release.Code),
+            ReleaseIdempotencyConflictException release => (
+                StatusCodes.Status409Conflict,
+                "Idempotency conflict",
+                release.Code),
+            ReleaseConcurrencyException release => (
+                StatusCodes.Status412PreconditionFailed,
+                "Registry precondition failed",
+                release.Code),
+            QualityGateRejectedException release => (
+                StatusCodes.Status422UnprocessableEntity,
+                "Quality gate rejected",
+                release.Code),
             RecordNotFoundException => (
                 StatusCodes.Status404NotFound,
                 "Record not found",
@@ -229,6 +259,11 @@ app.UseExceptionHandler(errorApp =>
             problem.Extensions["code"] = code;
         }
 
+        if (exception is QualityGateRejectedException rejection)
+        {
+            problem.Extensions["gateEvidence"] = rejection.Evidence;
+        }
+
         string correlationId = context.Items["CorrelationId"] as string
             ?? context.TraceIdentifier;
         problem.Extensions["correlationId"] = correlationId;
@@ -247,6 +282,51 @@ app.Use(
     });
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapPost(
+    "/api/promote/{version}",
+    async (
+        string version,
+        ReleaseApiRequest request,
+        HttpContext context,
+        IReleaseWorkflowService workflows,
+        CancellationToken cancellationToken) =>
+    {
+        ReleaseWorkflowResult result = await workflows.PromoteAsync(
+            version,
+            CreateReleaseCommand(request, context),
+            cancellationToken);
+        context.Response.Headers.ETag = result.Registry.ETag;
+        return Results.Ok(ToReleaseResponse(result));
+    })
+    .WithName("PromoteVersion")
+    .Produces<ReleaseApiResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound)
+    .ProducesProblem(StatusCodes.Status409Conflict)
+    .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+    .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
+app.MapPost(
+    "/api/rollback",
+    async (
+        ReleaseApiRequest request,
+        HttpContext context,
+        IReleaseWorkflowService workflows,
+        CancellationToken cancellationToken) =>
+    {
+        ReleaseWorkflowResult result = await workflows.RollbackAsync(
+            CreateReleaseCommand(request, context),
+            cancellationToken);
+        context.Response.Headers.ETag = result.Registry.ETag;
+        return Results.Ok(ToReleaseResponse(result));
+    })
+    .WithName("RollbackVersion")
+    .Produces<ReleaseApiResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound)
+    .ProducesProblem(StatusCodes.Status409Conflict)
+    .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+
 app.MapGet(
     "/api/metrics",
     async (
@@ -453,7 +533,37 @@ static string ResolveCorrelationId(HttpContext context)
     return string.IsNullOrWhiteSpace(traceId) ? Guid.NewGuid().ToString("N") : traceId;
 }
 
+static ReleaseCommand CreateReleaseCommand(ReleaseApiRequest request, HttpContext context)
+{
+    string idempotencyKey = context.Request.Headers["Idempotency-Key"].FirstOrDefault()
+        ?? string.Empty;
+    string expectedETag = context.Request.Headers.IfMatch.FirstOrDefault()
+        ?? string.Empty;
+    return new ReleaseCommand(
+        string.IsNullOrWhiteSpace(request.RegistryId) ? "default" : request.RegistryId,
+        request.Actor ?? string.Empty,
+        idempotencyKey,
+        expectedETag);
+}
+
+static ReleaseApiResponse ToReleaseResponse(ReleaseWorkflowResult result) =>
+    new(
+        result.Registry.State.Id,
+        result.Registry.ETag,
+        result.Registry.State.Production,
+        result.Release,
+        result.Replayed);
+
 internal sealed record ChatApiRequest(string? Message, string? RegistryId = null);
+
+internal sealed record ReleaseApiRequest(string? Actor, string? RegistryId = null);
+
+internal sealed record ReleaseApiResponse(
+    string RegistryId,
+    string ETag,
+    AgentAssignment? Production,
+    ReleaseRecord Release,
+    bool Replayed);
 
 internal sealed record EvaluationsResponse(
     string RegistryId,
