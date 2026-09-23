@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\GenAIOps.Domain\GenAIOps.Domain.csproj" />
     <ProjectReference Include="..\..\src\GenAIOps.Application\GenAIOps.Application.csproj" />
+    <ProjectReference Include="..\..\src\GenAIOps.Infrastructure\GenAIOps.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
