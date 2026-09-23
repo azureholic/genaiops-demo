@@ -42,6 +42,30 @@ export interface MetricsResponse {
   continuationToken: string | null
 }
 
+export type EvaluationLifecycle = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Poisoned'
+
+export interface EvaluationSummary {
+  correlationId: string
+  productionAgentId: string
+  productionPromptVersion: string
+  candidateAgentId: string
+  candidatePromptVersion: string
+  lifecycle: EvaluationLifecycle
+  scores: Record<string, number>
+  candidateLatencyMilliseconds: number | null
+  attemptCount: number
+  errorCode: string | null
+  errorMessage: string | null
+  createdAt: string
+  completedAt: string | null
+}
+
+export interface EvaluationsResponse {
+  registryId: string
+  evaluations: EvaluationSummary[]
+  continuationToken: string | null
+}
+
 export interface MetricsUpdated extends Omit<MetricSnapshot, 'id'> {}
 
 export interface EvaluationUpdated {

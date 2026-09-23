@@ -57,6 +57,16 @@ const responses = {
   '/api/metrics?pageSize=100': {
     registryId: 'default',
     snapshots: [{
+      id: 'metric-v1',
+      promptVersion: 'v1',
+      windowStart: '2026-09-21T10:00:00Z',
+      windowEnd: '2026-09-22T10:00:00Z',
+      generatedAt: '2026-09-22T10:01:00Z',
+      sampleCount: 20,
+      successfulCount: 18,
+      failureCount: 2,
+      metrics: { taskAdherence: 0.82, groundedness: 0.89, toolAccuracy: 0.84 },
+    }, {
       id: 'metric-1',
       promptVersion: 'v2',
       windowStart: '2026-09-22T10:00:00Z',
@@ -66,6 +76,77 @@ const responses = {
       successfulCount: 19,
       failureCount: 1,
       metrics: { taskAdherence: 0.94, groundedness: 0.97, toolAccuracy: 0.95 },
+    }, {
+      id: 'metric-v3',
+      promptVersion: 'v3',
+      windowStart: '2026-09-22T10:00:00Z',
+      windowEnd: '2026-09-23T10:00:00Z',
+      generatedAt: '2026-09-23T10:02:00Z',
+      sampleCount: 20,
+      successfulCount: 16,
+      failureCount: 4,
+      metrics: { taskAdherence: 0.72, groundedness: 0.75, toolAccuracy: 0.58 },
+    }],
+    continuationToken: null,
+  },
+  '/api/evaluations?pageSize=100': {
+    registryId: 'default',
+    evaluations: [{
+      correlationId: 'customer-run-00000001',
+      productionAgentId: 'support-agent',
+      productionPromptVersion: 'v2',
+      candidateAgentId: 'candidate-agent',
+      candidatePromptVersion: 'v3',
+      lifecycle: 'Completed',
+      scores: { taskAdherence: 0.72, groundedness: 0.75, toolAccuracy: 0.58 },
+      candidateLatencyMilliseconds: 860,
+      attemptCount: 1,
+      errorCode: null,
+      errorMessage: null,
+      createdAt: '2026-09-23T10:10:00Z',
+      completedAt: '2026-09-23T10:10:01Z',
+    }, {
+      correlationId: 'customer-run-00000002',
+      productionAgentId: 'support-agent',
+      productionPromptVersion: 'v2',
+      candidateAgentId: 'candidate-agent',
+      candidatePromptVersion: 'v3',
+      lifecycle: 'Completed',
+      scores: { taskAdherence: 0.7 },
+      candidateLatencyMilliseconds: null,
+      attemptCount: 2,
+      errorCode: null,
+      errorMessage: null,
+      createdAt: '2026-09-23T10:20:00Z',
+      completedAt: '2026-09-23T10:20:02Z',
+    }, {
+      correlationId: 'customer-run-00000003',
+      productionAgentId: 'support-agent',
+      productionPromptVersion: 'v2',
+      candidateAgentId: 'candidate-agent',
+      candidatePromptVersion: 'v3',
+      lifecycle: 'Running',
+      scores: {},
+      candidateLatencyMilliseconds: null,
+      attemptCount: 1,
+      errorCode: null,
+      errorMessage: null,
+      createdAt: '2026-09-23T12:00:00Z',
+      completedAt: null,
+    }, {
+      correlationId: 'customer-run-00000004',
+      productionAgentId: 'support-agent',
+      productionPromptVersion: 'v2',
+      candidateAgentId: 'candidate-agent',
+      candidatePromptVersion: 'v3',
+      lifecycle: 'Failed',
+      scores: {},
+      candidateLatencyMilliseconds: null,
+      attemptCount: 3,
+      errorCode: 'evaluator_timeout',
+      errorMessage: 'Sensitive provider detail is omitted in the dashboard.',
+      createdAt: '2026-09-23T10:30:00Z',
+      completedAt: '2026-09-23T10:31:00Z',
     }],
     continuationToken: null,
   },
@@ -296,6 +377,67 @@ describe('application shell', () => {
     expect(alert).toHaveTextContent('Candidate v3 did not satisfy tool accuracy.')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.queryByText(/promotion succeeded/i)).not.toBeInTheDocument()
+  })
+
+  it('shows privacy-safe shadow comparisons and accurate operational states', async () => {
+    window.history.replaceState({}, '', '/shadow-testing')
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Shadow Testing' })).toBeInTheDocument()
+    expect(screen.getByText('Attention needed')).toBeInTheDocument()
+    expect(screen.getByText('1 delayed evaluation')).toBeInTheDocument()
+    expect(screen.getByText('1 partial results')).toBeInTheDocument()
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    expect(screen.getByText('Code: evaluator_timeout')).toBeInTheDocument()
+    expect(screen.getByText('customer…0001')).toBeInTheDocument()
+    expect(screen.queryByText('Sensitive provider detail is omitted in the dashboard.')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Recent shadow comparisons table' })).toHaveAttribute('tabindex', '0')
+    expect(screen.getByText(/customer input and generated output are not returned/i)).toBeInTheDocument()
+  })
+
+  it('highlights v2 improvement, v3 regression, filters, and accessible trend data', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/evaluations')
+    renderApp()
+
+    expect(await screen.findByRole('heading', { name: 'Evaluation Dashboard' })).toBeInTheDocument()
+    expect(screen.getByText('v2 improvement confirmed')).toBeInTheDocument()
+    const regression = screen.getByRole('alert')
+    expect(regression).toHaveTextContent('v3 regression detected')
+    expect(regression).toHaveTextContent('Promotion quality gates failed')
+    expect(screen.getByText('toolAccuracy 0.58 is below 0.9')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Line chart of 3 metric snapshots/ })).toBeInTheDocument()
+
+    await user.click(screen.getByText('View accessible trend data table'))
+    expect(screen.getByRole('region', { name: 'Metric trend data' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Samples' })).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Evaluation state'), 'Failed')
+    expect(screen.getByText('1 evaluation records')).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Prompt version'), 'v1')
+    expect(screen.getByText('0 evaluation records')).toBeInTheDocument()
+    expect(screen.getByText('No evaluations match these filters.')).toBeInTheDocument()
+  })
+
+  it('refreshes evaluation dashboards after realtime evaluation notifications', async () => {
+    window.history.replaceState({}, '', '/evaluations')
+    const rendered = renderApp()
+    await screen.findByRole('heading', { name: 'Evaluation Dashboard' })
+    const invalidate = vi.spyOn(rendered.client, 'invalidateQueries')
+
+    act(() => {
+      rendered.handlers.get('EvaluationUpdated')?.({
+        productionPromptVersion: 'v2',
+        candidatePromptVersion: 'v3',
+        lifecycle: 'Completed',
+        scores: { groundedness: 0.7 },
+        latencyMilliseconds: 900,
+        completedAt: '2026-09-23T14:00:00Z',
+      })
+    })
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['evaluations'] }))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['metrics'] })
   })
 
   it('confirms the exact rollback target and handles a stale conflict', async () => {

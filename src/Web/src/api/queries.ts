@@ -18,6 +18,11 @@ export const metricsQuery = queryOptions({
   queryFn: ({ signal }) => api.metrics(signal),
 })
 
+export const evaluationsQuery = queryOptions({
+  queryKey: queryKeys.evaluations,
+  queryFn: ({ signal }) => api.evaluations(signal),
+})
+
 export const releasesQuery = queryOptions({
   queryKey: queryKeys.releases,
   queryFn: ({ signal }) => api.releases(signal),

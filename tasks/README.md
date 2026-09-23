@@ -36,7 +36,7 @@ These files break the specification into commit-sized implementation tasks. Comp
 | 09 | Observability and real-time updates integration gate | 09A, 09B | complete |
 | 10 | Web application shell and home dashboard | 01, 06, 09 | complete |
 | 11 | Prompt registry and release history dashboards | 07, 10 | complete |
-| 12 | Shadow testing and evaluation dashboards | 05, 06, 10 | ready |
+| 12 | Shadow testing and evaluation dashboards | 05, 06, 10 | complete |
 | 13 | Azure infrastructure and container deployment | 04, 05, 06, 07, 08, 09 | ready |
 | 14 | GitHub Actions CI/CD workflows | 02, 13 | blocked |
 | 15 | End-to-end demo validation and documentation | 11, 12, 14 | blocked |

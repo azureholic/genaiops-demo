@@ -33,6 +33,8 @@ import './App.css'
 const HomePage = lazy(() => import('./pages/HomePage'))
 const PromptRegistryPage = lazy(() => import('./pages/PromptRegistryPage'))
 const ReleaseHistoryPage = lazy(() => import('./pages/ReleaseHistoryPage'))
+const ShadowTestingPage = lazy(() => import('./pages/ShadowTestingPage'))
+const EvaluationDashboardPage = lazy(() => import('./pages/EvaluationDashboardPage'))
 
 const HomeIcon = bundleIcon(HomeFilled, HomeRegular)
 const RegistryIcon = bundleIcon(BeakerFilled, BeakerRegular)
@@ -141,8 +143,8 @@ function AppShell() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/prompts" element={<PromptRegistryPage />} />
-            <Route path="/shadow-testing" element={<PlannedPage title="Shadow Testing" />} />
-            <Route path="/evaluations" element={<PlannedPage title="Evaluation Dashboard" />} />
+            <Route path="/shadow-testing" element={<ShadowTestingPage />} />
+            <Route path="/evaluations" element={<EvaluationDashboardPage />} />
             <Route path="/releases" element={<ReleaseHistoryPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -150,16 +152,6 @@ function AppShell() {
       </main>
       {navOpen && <button className="nav-scrim" aria-label="Close navigation" onClick={() => setNavOpen(false)} />}
     </div>
-  )
-}
-
-function PlannedPage({ title }: { title: string }) {
-  return (
-    <section className="placeholder-page">
-      <Text as="h1" size={800} weight="semibold">{title}</Text>
-      <Text>This workspace is available from the navigation and will be delivered in its dedicated dashboard task.</Text>
-      <Button as="a" href="/">Return home</Button>
-    </section>
   )
 }
 

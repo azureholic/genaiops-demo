@@ -1,4 +1,5 @@
 import type {
+  EvaluationsResponse,
   MetricsResponse,
   ProblemDetails,
   ReleasesResponse,
@@ -49,6 +50,8 @@ export const api = {
     request<VersionsResponse>('/api/versions?pageSize=50', { signal }),
   metrics: (signal?: AbortSignal) =>
     request<MetricsResponse>('/api/metrics?pageSize=100', { signal }),
+  evaluations: (signal?: AbortSignal) =>
+    request<EvaluationsResponse>('/api/evaluations?pageSize=100', { signal }),
   releases: (signal?: AbortSignal) =>
     request<ReleasesResponse>('/api/releases?pageSize=100', { signal }),
   promote: (version: string, eTag: string, actor: string, idempotencyKey: string) =>
