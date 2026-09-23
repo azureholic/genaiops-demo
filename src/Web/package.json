@@ -9,6 +9,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b --pretty false",
     "lint": "oxlint",
+    "validate:content": "node scripts/validate-content.mjs --candidate v2",
+    "validate:workflows": "node scripts/validate-workflows.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -32,6 +34,7 @@
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.1",
+    "yaml": "^2.9.1"
   }
 }

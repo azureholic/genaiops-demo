@@ -1,6 +1,6 @@
 # Task 14: GitHub Actions CI/CD Workflows
 
-**Status:** blocked  
+**Status:** complete
 **Depends on:** Tasks 02 and 13  
 **Commit subject:** `ci: add GenAIOps deployment workflows`
 
@@ -34,3 +34,17 @@ npm --prefix src\Web run build
 az bicep build --file Infrastructure\main.bicep
 ```
 
+## Evidence
+
+- Four workflow files pass YAML parsing and repository security-policy checks for immutable
+  action SHAs, least permissions, OIDC, protected environments, and deployment concurrency.
+- .NET: 115 tests passed (79 unit and 36 integration); the new candidate registration
+  endpoint is covered by an integration test.
+- Web: 11 tests, lint, production build, deterministic prompt validation, and v2 quality
+  gates passed using the committed packagefeedproxy configuration.
+- NuGet and npm vulnerability checks reported no vulnerable packages.
+- Bicep build and lint passed without warnings, including conditional infrastructure-first
+  provisioning and immutable image digest references.
+- Promotion and rollback require explicit environment/version inputs, protected GitHub
+  environments, and verify the resulting production version.
+- `git diff --check` passed. No Azure deployment was run locally.

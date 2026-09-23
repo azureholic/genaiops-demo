@@ -38,8 +38,8 @@ These files break the specification into commit-sized implementation tasks. Comp
 | 11 | Prompt registry and release history dashboards | 07, 10 | complete |
 | 12 | Shadow testing and evaluation dashboards | 05, 06, 10 | complete |
 | 13 | Azure infrastructure and container deployment | 04, 05, 06, 07, 08, 09 | complete |
-| 14 | GitHub Actions CI/CD workflows | 02, 13 | ready |
-| 15 | End-to-end demo validation and documentation | 11, 12, 14 | blocked |
+| 14 | GitHub Actions CI/CD workflows | 02, 13 | complete |
+| 15 | End-to-end demo validation and documentation | 11, 12, 14 | ready |
 
 ## Specification Coverage
 

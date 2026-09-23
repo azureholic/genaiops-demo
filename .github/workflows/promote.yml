@@ -1,0 +1,70 @@
+name: Promote candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [dev, staging, production]
+      version:
+        description: Candidate prompt version to promote
+        required: true
+        type: string
+      resource_group:
+        description: Deployment resource group
+        required: true
+        type: string
+      registry_id:
+        description: Agent registry identifier
+        required: true
+        default: default
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: genaiops-deployment-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Promote approved candidate
+        shell: pwsh
+        run: |
+          $apiUrl = az deployment group show --name 'genaiops-${{ inputs.environment }}' --resource-group '${{ inputs.resource_group }}' --query properties.outputs.apiUrl.value -o tsv
+          ./scripts/Invoke-GenAIOpsRelease.ps1 `
+            -Action Promote `
+            -ApiUrl $apiUrl `
+            -RegistryId '${{ inputs.registry_id }}' `
+            -Actor "github:${{ github.actor }}" `
+            -Version '${{ inputs.version }}' | Tee-Object promotion-result.json
+      - name: Upload promotion receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: promotion-${{ inputs.environment }}-${{ inputs.version }}
+          path: promotion-result.json
+          retention-days: 90
+      - name: Write promotion summary
+        if: always()
+        shell: bash
+        run: |
+          echo '## Promotion' >> "$GITHUB_STEP_SUMMARY"
+          echo "- Environment: \`${{ inputs.environment }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${{ inputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Registry: \`${{ inputs.registry_id }}\`" >> "$GITHUB_STEP_SUMMARY"

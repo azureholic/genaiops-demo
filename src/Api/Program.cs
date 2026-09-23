@@ -356,6 +356,36 @@ app.MapPost(
     .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
 
 app.MapPost(
+    "/api/candidates/{version}",
+    async (
+        string version,
+        CandidateApiRequest request,
+        HttpContext context,
+        IAgentRegistryService registry,
+        CancellationToken cancellationToken) =>
+    {
+        string registryId =
+            string.IsNullOrWhiteSpace(request.RegistryId) ? "default" : request.RegistryId;
+        RegistrySnapshot? current = await registry.GetAsync(registryId, cancellationToken);
+        RegistrySnapshot result = await registry.RegisterCandidateAsync(
+            registryId,
+            request.AgentId ?? string.Empty,
+            version,
+            current?.ETag,
+            cancellationToken);
+        context.Response.Headers.ETag = result.ETag;
+        return current is null
+            ? Results.Created($"/api/versions?registryId={Uri.EscapeDataString(registryId)}", result)
+            : Results.Ok(result);
+    })
+    .WithName("RegisterCandidate")
+    .Produces<RegistrySnapshot>(StatusCodes.Status201Created)
+    .Produces<RegistrySnapshot>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status409Conflict)
+    .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+
+app.MapPost(
     "/api/promote/{version}",
     async (
         string version,
@@ -703,6 +733,11 @@ internal sealed record LocalPromptMetadata(
     IReadOnlyDictionary<string, double> ExpectedMetrics);
 
 internal sealed record ReleaseApiRequest(string? Actor, string? RegistryId = null);
+
+internal sealed record CandidateApiRequest(
+    string? AgentId,
+    string? Actor,
+    string? RegistryId = null);
 
 internal sealed record AbTestApiRequest(
     string? Action,

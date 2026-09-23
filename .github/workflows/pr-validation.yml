@@ -1,0 +1,151 @@
+name: PR validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  NUGET_CONFIG_FILE: NuGet.config
+  NPM_CONFIG_USERCONFIG: src/Web/.npmrc
+
+jobs:
+  application:
+    name: Application, tests, prompts, and quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          global-json-file: global.json
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/Web/package-lock.json
+      - name: Verify package proxy policy
+        shell: pwsh
+        run: |
+          if ((Select-String -Path NuGet.config -Pattern 'https://packagefeedproxy.microsoft.io/nuget/v3/index.json').Count -ne 1) { throw 'NuGet proxy is not configured.' }
+          if ((Select-String -Path src/Web/.npmrc -Pattern '^registry=https://packagefeedproxy.microsoft.io/npm/$').Count -ne 1) { throw 'npm proxy is not configured.' }
+          $foreign = Select-String -Path src/Web/package-lock.json -Pattern '"resolved": "(?!https://packagefeedproxy\.microsoft\.io/)'
+          if ($foreign) { throw 'package-lock.json contains a non-proxy package source.' }
+      - name: Restore from packagefeedproxy only
+        run: |
+          dotnet restore GenAIOps.slnx --configfile NuGet.config
+          npm --prefix src/Web ci --userconfig src/Web/.npmrc
+      - name: Build application
+        run: dotnet build GenAIOps.slnx --configuration Release --no-restore
+      - name: Run all .NET tests
+        run: dotnet test GenAIOps.slnx --configuration Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory artifacts/test-results
+      - name: Run web validation and tests
+        run: |
+          npm --prefix src/Web run lint
+          npm --prefix src/Web run typecheck
+          npm --prefix src/Web test -- --run
+          npm --prefix src/Web run build
+      - name: Run deterministic prompt evaluation and quality gates
+        run: node src/Web/scripts/validate-content.mjs --candidate v2 --output artifacts/evaluation-report.json
+      - name: Check dependency vulnerabilities
+        shell: pwsh
+        run: |
+          $output = dotnet list GenAIOps.slnx package --vulnerable --include-transitive
+          $output | Write-Host
+          if ($output -match 'has the following vulnerable packages') { throw 'Vulnerable NuGet packages detected.' }
+          npm --prefix src/Web audit --audit-level=high --registry=https://packagefeedproxy.microsoft.io/npm/
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr-validation-evidence
+          path: artifacts
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Write job summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '## Application validation'
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo '- Restore sources: packagefeedproxy only'
+            echo '- Checks: build, all tests, web lint/typecheck/test/build, deterministic prompt evaluation, quality gates, dependency vulnerabilities'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  infrastructure:
+    name: Bicep build and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Build and lint Bicep
+        run: |
+          az bicep build --file Infrastructure/main.bicep
+          az bicep lint --file Infrastructure/main.bicep
+          az bicep build-params --file Infrastructure/main.dev.bicepparam --outfile artifacts/main.dev.json
+      - name: Upload compiled Bicep
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: compiled-bicep
+          path: artifacts/main.dev.json
+          retention-days: 14
+
+  containers:
+    name: Container ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: src/Api/Dockerfile
+            context: .
+          - name: web
+            dockerfile: src/Web/Dockerfile
+            context: src/Web
+          - name: shadow-evaluator
+            dockerfile: src/Workers/ShadowEvaluator/Dockerfile
+            context: .
+          - name: metrics-aggregator
+            dockerfile: src/Workers/MetricsAggregator/Dockerfile
+            context: .
+          - name: promotion-engine
+            dockerfile: src/Workers/PromotionEngine/Dockerfile
+            context: .
+          - name: rollback-engine
+            dockerfile: src/Workers/RollbackEngine/Dockerfile
+            context: .
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build local image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: genaiops/${{ matrix.name }}:pr-${{ github.event.pull_request.number }}
+      - name: Scan image for high and critical vulnerabilities
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7
+        with:
+          image: genaiops/${{ matrix.name }}:pr-${{ github.event.pull_request.number }}
+          fail-build: true
+          severity-cutoff: high
+          output-format: table

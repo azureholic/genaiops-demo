@@ -20,6 +20,8 @@ param webMinReplicas int = 1
 param webMaxReplicas int = 3
 param workerMinReplicas int = 1
 param workerMaxReplicas int = 1
+@description('Deploy Container Apps after immutable images have been pushed to the registry.')
+param deployApplications bool = true
 
 param modelDeploymentName string = 'genaiops-chat'
 param modelName string = 'gpt-4.1-mini'
@@ -34,6 +36,8 @@ param modelSkuName string = 'GlobalStandard'
 param modelCapacity int = 1
 
 param imageTag string = 'dev'
+@description('Optional immutable image references (loginServer/repository@sha256:digest). Each supplied value overrides imageTag for that workload.')
+param imageReferences object = {}
 param imageNames object = {
   api: 'genaiops-api'
   web: 'genaiops-web'
@@ -292,6 +296,14 @@ var telemetrySecret = [
     identity: identities.outputs.api.id
   }
 ]
+var workloadImages = {
+  api: imageReferences.?api ?? '${registry.outputs.loginServer}/${imageNames.api}:${imageTag}'
+  web: imageReferences.?web ?? '${registry.outputs.loginServer}/${imageNames.web}:${imageTag}'
+  shadowEvaluator: imageReferences.?shadowEvaluator ?? '${registry.outputs.loginServer}/${imageNames.shadowEvaluator}:${imageTag}'
+  metricsAggregator: imageReferences.?metricsAggregator ?? '${registry.outputs.loginServer}/${imageNames.metricsAggregator}:${imageTag}'
+  promotionEngine: imageReferences.?promotionEngine ?? '${registry.outputs.loginServer}/${imageNames.promotionEngine}:${imageTag}'
+  rollbackEngine: imageReferences.?rollbackEngine ?? '${registry.outputs.loginServer}/${imageNames.rollbackEngine}:${imageTag}'
+}
 var commonDotnetEnvironment = [
   {
     name: 'DOTNET_ENVIRONMENT'
@@ -339,7 +351,7 @@ var commonDotnetEnvironment = [
   }
 ]
 
-module api 'modules/container-app.bicep' = {
+module api 'modules/container-app.bicep' = if (deployApplications) {
   name: 'api'
   dependsOn: [
     acrPullAssignments
@@ -352,7 +364,7 @@ module api 'modules/container-app.bicep' = {
     environmentId: containerEnvironment.outputs.id
     identity: identities.outputs.api
     registryServer: registry.outputs.loginServer
-    image: '${registry.outputs.loginServer}/${imageNames.api}:${imageTag}'
+    image: workloadImages.api
     cpu: '0.5'
     memory: '1Gi'
     minReplicas: apiMinReplicas
@@ -378,7 +390,7 @@ module api 'modules/container-app.bicep' = {
   }
 }
 
-module web 'modules/container-app.bicep' = {
+module web 'modules/container-app.bicep' = if (deployApplications) {
   name: 'web'
   dependsOn: [
     acrPullAssignments
@@ -389,7 +401,7 @@ module web 'modules/container-app.bicep' = {
     environmentId: containerEnvironment.outputs.id
     identity: identities.outputs.web
     registryServer: registry.outputs.loginServer
-    image: '${registry.outputs.loginServer}/${imageNames.web}:${imageTag}'
+    image: workloadImages.web
     cpu: '0.25'
     memory: '0.5Gi'
     minReplicas: webMinReplicas
@@ -397,7 +409,7 @@ module web 'modules/container-app.bicep' = {
     env: [
       {
         name: 'API_HOST'
-        value: 'https://${api.outputs.fqdn}'
+        value: 'https://${api!.outputs.fqdn}'
       }
     ]
     externalIngress: true
@@ -406,7 +418,7 @@ module web 'modules/container-app.bicep' = {
   }
 }
 
-module shadowEvaluator 'modules/container-app.bicep' = {
+module shadowEvaluator 'modules/container-app.bicep' = if (deployApplications) {
   name: 'shadow-evaluator'
   dependsOn: [
     acrPullAssignments
@@ -419,7 +431,7 @@ module shadowEvaluator 'modules/container-app.bicep' = {
     environmentId: containerEnvironment.outputs.id
     identity: identities.outputs.shadowEvaluator
     registryServer: registry.outputs.loginServer
-    image: '${registry.outputs.loginServer}/${imageNames.shadowEvaluator}:${imageTag}'
+    image: workloadImages.shadowEvaluator
     cpu: '0.25'
     memory: '0.5Gi'
     minReplicas: workerMinReplicas
@@ -449,7 +461,7 @@ module shadowEvaluator 'modules/container-app.bicep' = {
   }
 }
 
-module metricsAggregator 'modules/container-app.bicep' = {
+module metricsAggregator 'modules/container-app.bicep' = if (deployApplications) {
   name: 'metrics-aggregator'
   dependsOn: [
     acrPullAssignments
@@ -462,7 +474,7 @@ module metricsAggregator 'modules/container-app.bicep' = {
     environmentId: containerEnvironment.outputs.id
     identity: identities.outputs.metricsAggregator
     registryServer: registry.outputs.loginServer
-    image: '${registry.outputs.loginServer}/${imageNames.metricsAggregator}:${imageTag}'
+    image: workloadImages.metricsAggregator
     cpu: '0.25'
     memory: '0.5Gi'
     minReplicas: workerMinReplicas
@@ -496,7 +508,7 @@ module metricsAggregator 'modules/container-app.bicep' = {
   }
 }
 
-module promotionEngine 'modules/container-app.bicep' = {
+module promotionEngine 'modules/container-app.bicep' = if (deployApplications) {
   name: 'promotion-engine'
   dependsOn: [
     acrPullAssignments
@@ -509,7 +521,7 @@ module promotionEngine 'modules/container-app.bicep' = {
     environmentId: containerEnvironment.outputs.id
     identity: identities.outputs.promotionEngine
     registryServer: registry.outputs.loginServer
-    image: '${registry.outputs.loginServer}/${imageNames.promotionEngine}:${imageTag}'
+    image: workloadImages.promotionEngine
     cpu: '0.25'
     memory: '0.5Gi'
     minReplicas: workerMinReplicas
@@ -535,7 +547,7 @@ module promotionEngine 'modules/container-app.bicep' = {
   }
 }
 
-module rollbackEngine 'modules/container-app.bicep' = {
+module rollbackEngine 'modules/container-app.bicep' = if (deployApplications) {
   name: 'rollback-engine'
   dependsOn: [
     acrPullAssignments
@@ -548,7 +560,7 @@ module rollbackEngine 'modules/container-app.bicep' = {
     environmentId: containerEnvironment.outputs.id
     identity: identities.outputs.rollbackEngine
     registryServer: registry.outputs.loginServer
-    image: '${registry.outputs.loginServer}/${imageNames.rollbackEngine}:${imageTag}'
+    image: workloadImages.rollbackEngine
     cpu: '0.25'
     memory: '0.5Gi'
     minReplicas: workerMinReplicas
@@ -574,8 +586,8 @@ module rollbackEngine 'modules/container-app.bicep' = {
   }
 }
 
-output webUrl string = 'https://${web.outputs.fqdn}'
-output apiUrl string = 'https://${api.outputs.fqdn}'
+output webUrl string = deployApplications ? 'https://${web!.outputs.fqdn}' : ''
+output apiUrl string = deployApplications ? 'https://${api!.outputs.fqdn}' : ''
 output containerRegistryName string = names.registry
 output containerRegistryLoginServer string = registry.outputs.loginServer
 output containerAppsEnvironmentId string = containerEnvironment.outputs.id
