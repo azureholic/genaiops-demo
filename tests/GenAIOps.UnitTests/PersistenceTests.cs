@@ -136,7 +136,7 @@ public sealed class CosmosPersistenceDefinitionTests
     [Fact]
     public void Every_container_uses_query_aligned_partition_key_and_explicit_indexes()
     {
-        Assert.Equal(5, CosmosContainerDefinitions.All.Count);
+        Assert.Equal(6, CosmosContainerDefinitions.All.Count);
         Assert.All(
             CosmosContainerDefinitions.All,
             definition =>
@@ -157,5 +157,6 @@ public sealed class CosmosPersistenceDefinitionTests
         Assert.Equal("evaluations", CosmosContainerDefinitions.For<EvaluationRecord>().Name);
         Assert.Equal("metrics", CosmosContainerDefinitions.For<MetricSnapshotRecord>().Name);
         Assert.Equal("experiments", CosmosContainerDefinitions.For<ExperimentRecord>().Name);
+        Assert.Equal("requests", CosmosContainerDefinitions.For<ChatRequestMetadataRecord>().Name);
     }
 }

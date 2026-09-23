@@ -127,3 +127,20 @@ public sealed record ReleaseRecord(
 
     public string Type => "release";
 }
+
+public sealed record ChatRequestMetadataRecord(
+    string Id,
+    string PartitionKey,
+    string CorrelationId,
+    string RegistryId,
+    string AgentId,
+    string PromptVersion,
+    DateTimeOffset RequestedAt,
+    int InputCharacterCount,
+    string Outcome,
+    string? ProviderResponseId) : IPersistedRecord
+{
+    public int SchemaVersion => 1;
+
+    public string Type => "chatRequestMetadata";
+}
