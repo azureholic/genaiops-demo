@@ -40,8 +40,11 @@ docker build --file src\Web\Dockerfile src\Web
 - .NET solution: 114 tests passed (79 unit, 35 integration).
 - Web: lint, typecheck, 11 tests, and production build passed.
 - Dependency security: no vulnerable NuGet or npm packages reported.
-- Six Dockerfiles define explicit non-root users; API and web have Container Apps
-  startup, liveness, and readiness probes.
-- Docker engine unavailable on the validation host, so image builds were not runnable.
-  The limitation and exact build commands are documented in `Infrastructure/README.md`.
+- All six container images build successfully with Podman using the same OCI
+  Dockerfiles used by Docker and Container Apps.
+- Image inspection confirms explicit non-root users for every final stage.
+- API and web containers return HTTP 200 from `/health` when run together using the
+  documented development configuration.
+- The web image installs npm dependencies exclusively through the Microsoft package
+  feed proxy and excludes host `node_modules` from its build context.
 - Deployment and Task 14 were not started.

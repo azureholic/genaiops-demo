@@ -103,9 +103,10 @@ Task 13 is complete when container and Bicep builds pass, least-privilege identi
   `Infrastructure/README.md` documents authenticated what-if without running it.
 - Bicep build, lint, and parameter compilation pass. Full .NET and web validation and
   dependency vulnerability scans pass.
-- Docker CLI is installed, but the Docker Desktop Linux engine is unavailable on this
-  host (`dockerDesktopLinuxEngine` named pipe is absent). Image builds could not be
-  executed here; all six Dockerfiles received static non-root and credential checks.
+- Docker Desktop was unavailable, so the installed Podman Linux engine was used as an
+  OCI-compatible fallback. All six images built successfully, passed non-root image
+  inspection, and the API and web `/health` endpoints returned HTTP 200 when run
+  together.
 
 ## 12. Validation Proof
 
@@ -119,7 +120,10 @@ Task 13 is complete when container and Bicep builds pass, least-privilege identi
 - [x] NuGet transitive vulnerability scan and `npm audit --audit-level=high`: none found.
 - [x] Static Docker checks: all six final stages specify non-root users; no credential
   literals found.
-- [ ] Docker image builds: blocked because the local Docker engine is unavailable.
+- [x] Podman OCI image builds for API, web, shadow evaluator, metrics aggregator,
+  promotion engine, and rollback engine.
+- [x] Image configuration inspection confirms non-root users for all six images.
+- [x] API and web container health probes returned HTTP 200.
 - [ ] ARM validation, Azure Policy validation, and what-if: intentionally not run
   because Task 13 is offline preparation and no live Azure credentials were supplied.
 
