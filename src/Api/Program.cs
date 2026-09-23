@@ -2,13 +2,16 @@ using System.Text.Json.Serialization;
 using GenAIOps.Application.Chat;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
+using GenAIOps.Application.Shadow;
 using GenAIOps.Domain.Prompts;
 using GenAIOps.Domain.Records;
 using GenAIOps.Domain.Registry;
 using GenAIOps.Infrastructure.Chat;
 using GenAIOps.Infrastructure.Persistence;
+using GenAIOps.Infrastructure.Shadow;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Cosmos;
 
 if (args is ["validate-prompts"])
 {
@@ -64,6 +67,43 @@ else
 }
 
 builder.Services.AddSingleton<IAgentRegistryService, AgentRegistryService>();
+ShadowProcessingOptions shadowOptions = new(
+    TimeSpan.FromSeconds(builder.Configuration.GetValue("Shadow:TimeoutSeconds", 30)),
+    builder.Configuration.GetValue("Shadow:MaximumAttempts", 3));
+string evaluationProvider = builder.Configuration["Shadow:EvaluationProvider"]
+    ?? (builder.Environment.IsDevelopment() ? "Fake" : "Foundry");
+if (string.Equals(evaluationProvider, "Fake", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddLocalShadowEvaluation(
+        shadowOptions,
+        usePersistentQueue: string.Equals(
+            persistenceProvider,
+            "Cosmos",
+            StringComparison.OrdinalIgnoreCase));
+}
+else if (string.Equals(evaluationProvider, "Foundry", StringComparison.OrdinalIgnoreCase))
+{
+    string evaluationEndpoint = builder.Configuration["Shadow:Foundry:EvaluationEndpoint"]
+        ?? throw new InvalidOperationException(
+            "Shadow:Foundry:EvaluationEndpoint is required for Foundry evaluations.");
+    builder.Services.AddFoundryShadowEvaluation(
+        new FoundryEvaluationOptions(
+            new Uri(evaluationEndpoint, UriKind.Absolute),
+            builder.Configuration["Shadow:Foundry:TokenScope"] ?? "https://ai.azure.com/.default",
+            builder.Configuration["Shadow:Foundry:ManagedIdentityClientId"]),
+        shadowOptions,
+        usePersistentQueue: true);
+}
+else
+{
+    throw new InvalidOperationException(
+        $"Unsupported evaluation provider '{evaluationProvider}'. Use 'Fake' or 'Foundry'.");
+}
+
+if (!string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHostedService<ShadowEvaluationBackgroundService>();
+}
 builder.Services.AddSingleton<IChatService, ChatService>();
 
 string chatProvider = builder.Configuration["Chat:Provider"]
@@ -133,6 +173,10 @@ app.UseExceptionHandler(errorApp =>
                 StatusCodes.Status400BadRequest,
                 "Invalid request",
                 null),
+            CosmosException cosmos when cosmos.StatusCode == System.Net.HttpStatusCode.BadRequest => (
+                StatusCodes.Status400BadRequest,
+                "Invalid request",
+                null),
             _ => (
                 StatusCodes.Status500InternalServerError,
                 "Unexpected server error",
@@ -170,6 +214,47 @@ app.Use(
     });
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapGet(
+    "/api/evaluations",
+    async (
+        string? registryId,
+        int? pageSize,
+        string? continuationToken,
+        IRepository<ShadowEvaluationRecord> evaluations,
+        CancellationToken cancellationToken) =>
+    {
+        string resolvedRegistryId = string.IsNullOrWhiteSpace(registryId) ? "default" : registryId;
+        RepositoryPage<ShadowEvaluationRecord> page = await evaluations.QueryAsync(
+            new RecordQuery(
+                resolvedRegistryId,
+                Type: "shadowEvaluation",
+                PageSize: pageSize ?? 50,
+                ContinuationToken: continuationToken),
+            cancellationToken);
+        return Results.Ok(
+            new EvaluationsResponse(
+                resolvedRegistryId,
+                page.Items.Select(
+                    item => new EvaluationSummary(
+                        item.Value.CorrelationId,
+                        item.Value.ProductionAgentId,
+                        item.Value.ProductionPromptVersion,
+                        item.Value.CandidateAgentId,
+                        item.Value.CandidatePromptVersion,
+                        item.Value.Lifecycle,
+                        item.Value.Scores,
+                        item.Value.CandidateLatencyMilliseconds,
+                        item.Value.AttemptCount,
+                        item.Value.ErrorCode,
+                        item.Value.ErrorMessage,
+                        item.Value.CreatedAt,
+                        item.Value.CompletedAt)).ToArray(),
+                page.ContinuationToken));
+    })
+    .WithName("GetEvaluations")
+    .Produces<EvaluationsResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest);
+
 app.MapPost(
     "/api/chat",
     async (
@@ -252,6 +337,12 @@ if (builder.Configuration.GetValue<bool>("Chat:SeedLocalProduction"))
             registryId,
             agentName,
             candidate.ETag);
+        RegistrySnapshot production = (await registry.GetAsync(registryId))!;
+        await registry.RegisterCandidateAsync(
+            registryId,
+            builder.Configuration["Chat:LocalCandidate:AgentName"] ?? "local-support-candidate",
+            builder.Configuration["Chat:LocalCandidate:AgentVersion"] ?? "v2",
+            production.ETag);
     }
 }
 
@@ -288,6 +379,26 @@ static string ResolveCorrelationId(HttpContext context)
 }
 
 internal sealed record ChatApiRequest(string? Message, string? RegistryId = null);
+
+internal sealed record EvaluationsResponse(
+    string RegistryId,
+    IReadOnlyList<EvaluationSummary> Evaluations,
+    string? ContinuationToken);
+
+internal sealed record EvaluationSummary(
+    string CorrelationId,
+    string ProductionAgentId,
+    string ProductionPromptVersion,
+    string CandidateAgentId,
+    string CandidatePromptVersion,
+    EvaluationLifecycle Lifecycle,
+    IReadOnlyDictionary<string, double> Scores,
+    long? CandidateLatencyMilliseconds,
+    int AttemptCount,
+    string? ErrorCode,
+    string? ErrorMessage,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CompletedAt);
 
 internal sealed record VersionsResponse(
     string RegistryId,

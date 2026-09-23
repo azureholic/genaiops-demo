@@ -25,6 +25,7 @@ public enum EvaluationLifecycle
     Running,
     Completed,
     Failed,
+    Poisoned,
 }
 
 public enum ExperimentLifecycle
@@ -42,6 +43,14 @@ public enum ReleaseLifecycle
     Promoted,
     RolledBack,
     Superseded,
+}
+
+public enum ShadowWorkLifecycle
+{
+    Pending,
+    Processing,
+    Completed,
+    DeadLettered,
 }
 
 public sealed record PromptVersionRecord(
@@ -143,4 +152,51 @@ public sealed record ChatRequestMetadataRecord(
     public int SchemaVersion => 1;
 
     public string Type => "chatRequestMetadata";
+}
+
+public sealed record ShadowEvaluationRecord(
+    string Id,
+    string PartitionKey,
+    string CorrelationId,
+    string RegistryId,
+    string ProductionAgentId,
+    string ProductionPromptVersion,
+    string CandidateAgentId,
+    string CandidatePromptVersion,
+    string Input,
+    string ProductionOutput,
+    string? CandidateOutput,
+    EvaluationLifecycle Lifecycle,
+    IReadOnlyDictionary<string, double> Scores,
+    long? CandidateLatencyMilliseconds,
+    int AttemptCount,
+    string? ErrorCode,
+    string? ErrorMessage,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? CompletedAt) : IPersistedRecord
+{
+    public int SchemaVersion => 1;
+
+    public string Type => "shadowEvaluation";
+}
+
+public sealed record ShadowWorkRecord(
+    string Id,
+    string PartitionKey,
+    string CorrelationId,
+    string RegistryId,
+    string ProductionAgentId,
+    string ProductionPromptVersion,
+    string CandidateAgentId,
+    string CandidatePromptVersion,
+    string Input,
+    string ProductionOutput,
+    DateTimeOffset PublishedAt,
+    ShadowWorkLifecycle Lifecycle,
+    int AttemptCount,
+    string? DeadLetterReason) : IPersistedRecord
+{
+    public int SchemaVersion => 1;
+
+    public string Type => "shadowWork";
 }

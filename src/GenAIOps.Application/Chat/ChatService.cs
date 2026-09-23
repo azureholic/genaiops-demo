@@ -1,5 +1,6 @@
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
+using GenAIOps.Application.Shadow;
 using GenAIOps.Domain.Records;
 using GenAIOps.Domain.Registry;
 
@@ -8,7 +9,8 @@ namespace GenAIOps.Application.Chat;
 public sealed class ChatService(
     IAgentRegistryService registry,
     IChatGateway gateway,
-    IRepository<ChatRequestMetadataRecord> metadataRepository) : IChatService
+    IRepository<ChatRequestMetadataRecord> metadataRepository,
+    IShadowWorkPublisher? shadowPublisher = null) : IChatService
 {
     public const int MaximumMessageLength = 8_000;
 
@@ -49,6 +51,21 @@ public sealed class ChatService(
                 message.Length,
                 "succeeded",
                 result.ProviderResponseId);
+            if (snapshot?.State.Candidate is { } candidate)
+            {
+                TryPublishShadow(
+                    new ShadowWorkItem(
+                        correlationId,
+                        registryId,
+                        production.AgentId,
+                        production.PromptVersion,
+                        candidate.AgentId,
+                        candidate.PromptVersion,
+                        message,
+                        result.Message,
+                        DateTimeOffset.UtcNow));
+            }
+
             return new ChatResponse(
                 result.Message,
                 correlationId,
@@ -148,6 +165,19 @@ public sealed class ChatService(
         catch (Exception exception)
         {
             throw new ChatMetadataPersistenceException(exception);
+        }
+    }
+
+    private void TryPublishShadow(ShadowWorkItem work)
+    {
+        try
+        {
+            shadowPublisher?.TryPublish(work);
+        }
+        catch
+        {
+            // Shadow publication is best-effort on the visible request path. Production response
+            // success must never be changed by candidate pipeline availability.
         }
     }
 }

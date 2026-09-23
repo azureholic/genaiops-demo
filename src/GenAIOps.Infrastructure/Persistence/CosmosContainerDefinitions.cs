@@ -37,9 +37,10 @@ public static class CosmosContainerDefinitions
     public static readonly CosmosContainerDefinition Metrics = new("metrics", "/partitionKey");
     public static readonly CosmosContainerDefinition Experiments = new("experiments", "/partitionKey");
     public static readonly CosmosContainerDefinition Requests = new("requests", "/partitionKey");
+    public static readonly CosmosContainerDefinition ShadowWork = new("shadow-work", "/partitionKey");
 
     public static IReadOnlyList<CosmosContainerDefinition> All { get; } =
-        [Registry, Deployments, Evaluations, Metrics, Experiments, Requests];
+        [Registry, Deployments, Evaluations, Metrics, Experiments, Requests, ShadowWork];
 
     public static CosmosContainerDefinition For<T>()
         where T : class, IPersistedRecord
@@ -58,7 +59,8 @@ public static class CosmosContainerDefinitions
             return Deployments;
         }
 
-        if (type == typeof(EvaluationRecord))
+        if (type == typeof(EvaluationRecord)
+            || type == typeof(ShadowEvaluationRecord))
         {
             return Evaluations;
         }
@@ -76,6 +78,11 @@ public static class CosmosContainerDefinitions
         if (type == typeof(ChatRequestMetadataRecord))
         {
             return Requests;
+        }
+
+        if (type == typeof(ShadowWorkRecord))
+        {
+            return ShadowWork;
         }
 
         throw new NotSupportedException($"No Cosmos container is defined for {type.FullName}.");
