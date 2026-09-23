@@ -144,16 +144,32 @@ public sealed record MetricSnapshotRecord(
 public sealed record ExperimentRecord(
     string Id,
     string PartitionKey,
+    string ExperimentId,
+    string RegistryId,
     string Name,
-    IReadOnlyList<string> PromptVersions,
+    IReadOnlyList<ExperimentAllocation> Allocations,
     ExperimentLifecycle Lifecycle,
+    string Actor,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt) : IPersistedRecord
+    DateTimeOffset StartedAt,
+    DateTimeOffset UpdatedAt,
+    DateTimeOffset? EndedAt) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 
     public string Type => "experiment";
 }
+
+public sealed record ExperimentAllocation(
+    string PromptVersion,
+    int Percentage,
+    string? AgentId = null);
+
+public sealed record ExperimentAssignment(
+    string? ExperimentId,
+    string AgentId,
+    string PromptVersion,
+    DateTimeOffset AssignedAt);
 
 public sealed record ReleaseRecord(
     string Id,
@@ -199,7 +215,9 @@ public sealed record ChatRequestMetadataRecord(
     DateTimeOffset RequestedAt,
     int InputCharacterCount,
     string Outcome,
-    string? ProviderResponseId) : IPersistedRecord
+    string? ProviderResponseId,
+    string? ExperimentId = null,
+    string? AssignedPromptVersion = null) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 
@@ -225,7 +243,9 @@ public sealed record ShadowEvaluationRecord(
     string? ErrorCode,
     string? ErrorMessage,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? CompletedAt) : IPersistedRecord
+    DateTimeOffset? CompletedAt,
+    string? ExperimentId = null,
+    string? AssignedPromptVersion = null) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 
@@ -246,7 +266,9 @@ public sealed record ShadowWorkRecord(
     DateTimeOffset PublishedAt,
     ShadowWorkLifecycle Lifecycle,
     int AttemptCount,
-    string? DeadLetterReason) : IPersistedRecord
+    string? DeadLetterReason,
+    string? ExperimentId = null,
+    string? AssignedPromptVersion = null) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 

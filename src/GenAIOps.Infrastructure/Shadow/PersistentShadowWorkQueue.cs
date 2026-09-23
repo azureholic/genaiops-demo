@@ -110,7 +110,9 @@ public sealed class PersistentShadowWorkQueue(
             work.PublishedAt,
             ShadowWorkLifecycle.Pending,
             AttemptCount: 1,
-            DeadLetterReason: null);
+            DeadLetterReason: null,
+            work.ExperimentId,
+            work.AssignedPromptVersion);
 
     private static ShadowWorkItem ToWork(ShadowWorkRecord record) =>
         new(
@@ -122,5 +124,7 @@ public sealed class PersistentShadowWorkQueue(
             record.CandidatePromptVersion,
             record.Input,
             record.ProductionOutput,
-            record.PublishedAt);
+            record.PublishedAt,
+            record.ExperimentId,
+            record.AssignedPromptVersion);
 }

@@ -30,8 +30,8 @@ These files break the specification into commit-sized implementation tasks. Comp
 | 05 | Shadow testing and evaluation worker | 04 | complete |
 | 06 | Metrics aggregation and continuous evaluation | 05 | complete |
 | 07 | Promotion and rollback workflows | 03, 06 | complete |
-| 08 | A/B routing and experiment API | 04, 07 | ready |
-| 09 | Observability and real-time updates | 04, 05, 06, 07, 08 | blocked |
+| 08 | A/B routing and experiment API | 04, 07 | complete |
+| 09 | Observability and real-time updates | 04, 05, 06, 07, 08 | ready |
 | 10 | Web application shell and home dashboard | 01, 06, 09 | blocked |
 | 11 | Prompt registry and release history dashboards | 07, 10 | blocked |
 | 12 | Shadow testing and evaluation dashboards | 05, 06, 10 | blocked |

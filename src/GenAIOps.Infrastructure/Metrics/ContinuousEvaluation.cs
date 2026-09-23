@@ -141,7 +141,8 @@ public sealed class ContinuousEvaluationRunner(
                     ErrorCode: null,
                     ErrorMessage: null,
                     CreatedAt: scheduledAt,
-                    CompletedAt: scheduledAt);
+                    CompletedAt: scheduledAt,
+                    AssignedPromptVersion: promptVersion);
                 try
                 {
                     await evaluations.CreateAsync(record, cancellationToken);

@@ -1,3 +1,4 @@
+using GenAIOps.Application.Experiments;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
 using GenAIOps.Application.Shadow;
@@ -10,7 +11,8 @@ public sealed class ChatService(
     IAgentRegistryService registry,
     IChatGateway gateway,
     IRepository<ChatRequestMetadataRecord> metadataRepository,
-    IShadowWorkPublisher? shadowPublisher = null) : IChatService
+    IShadowWorkPublisher? shadowPublisher = null,
+    IExperimentRouter? experimentRouter = null) : IChatService
 {
     public const int MaximumMessageLength = 8_000;
 
@@ -18,7 +20,8 @@ public sealed class ChatService(
         string registryId,
         string message,
         string correlationId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? assignmentKey = null)
     {
         Validate(registryId, message, correlationId);
 
@@ -34,10 +37,34 @@ public sealed class ChatService(
 
         AgentAssignment production = snapshot?.State.Production
             ?? throw new ProductionAgentNotFoundException(registryId);
+        ExperimentAssignment assignment;
+        try
+        {
+            assignment = experimentRouter is null
+                ? new ExperimentAssignment(
+                    ExperimentId: null,
+                    production.AgentId,
+                    production.PromptVersion,
+                    DateTimeOffset.UtcNow)
+                : await experimentRouter.AssignAsync(
+                    registryId,
+                    snapshot!,
+                    assignmentKey,
+                    cancellationToken);
+        }
+        catch (OperationCanceledException exception)
+        {
+            throw new ChatRequestCanceledException(exception);
+        }
+        AgentAssignment routed = new(
+            assignment.AgentId,
+            assignment.PromptVersion,
+            AssignmentSlot.Production,
+            assignment.AssignedAt);
 
         ChatGatewayRequest gatewayRequest = new(
-            production.AgentId,
-            production.PromptVersion,
+            routed.AgentId,
+            routed.PromptVersion,
             message,
             correlationId);
 
@@ -46,7 +73,8 @@ public sealed class ChatService(
             ChatGatewayResponse result = await gateway.SendAsync(gatewayRequest, cancellationToken);
             await PersistMetadataAsync(
                 registryId,
-                production,
+                routed,
+                assignment,
                 correlationId,
                 message.Length,
                 "succeeded",
@@ -57,13 +85,15 @@ public sealed class ChatService(
                     new ShadowWorkItem(
                         correlationId,
                         registryId,
-                        production.AgentId,
-                        production.PromptVersion,
+                        routed.AgentId,
+                        routed.PromptVersion,
                         candidate.AgentId,
                         candidate.PromptVersion,
                         message,
                         result.Message,
-                        DateTimeOffset.UtcNow));
+                        DateTimeOffset.UtcNow,
+                        assignment.ExperimentId,
+                        assignment.PromptVersion));
             }
 
             return new ChatResponse(
@@ -72,13 +102,16 @@ public sealed class ChatService(
                 result.ProviderResponseId,
                 result.Citations,
                 result.ToolCalls,
-                result.Usage);
+                result.Usage,
+                assignment.PromptVersion,
+                assignment.ExperimentId);
         }
         catch (OperationCanceledException exception)
         {
             await PersistMetadataAsync(
                 registryId,
-                production,
+                routed,
+                assignment,
                 correlationId,
                 message.Length,
                 "cancelled",
@@ -89,7 +122,8 @@ public sealed class ChatService(
         {
             await PersistMetadataAsync(
                 registryId,
-                production,
+                routed,
+                assignment,
                 correlationId,
                 message.Length,
                 "failed",
@@ -104,7 +138,8 @@ public sealed class ChatService(
         {
             await PersistMetadataAsync(
                 registryId,
-                production,
+                routed,
+                assignment,
                 correlationId,
                 message.Length,
                 "failed",
@@ -141,6 +176,7 @@ public sealed class ChatService(
     private async Task PersistMetadataAsync(
         string registryId,
         AgentAssignment production,
+        ExperimentAssignment assignment,
         string correlationId,
         int inputCharacterCount,
         string outcome,
@@ -159,7 +195,9 @@ public sealed class ChatService(
                     DateTimeOffset.UtcNow,
                     inputCharacterCount,
                     outcome,
-                    providerResponseId),
+                    providerResponseId,
+                    assignment.ExperimentId,
+                    assignment.PromptVersion),
                 CancellationToken.None);
         }
         catch (Exception exception)

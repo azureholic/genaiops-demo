@@ -36,6 +36,8 @@ public sealed class ShadowEvaluationTests
         Assert.Contains("taskAdherence", stored.Value.Scores.Keys);
         Assert.Contains("groundedness", stored.Value.Scores.Keys);
         Assert.Contains("toolAccuracy", stored.Value.Scores.Keys);
+        Assert.Equal("experiment-test", stored.Value.ExperimentId);
+        Assert.Equal("v1", stored.Value.AssignedPromptVersion);
     }
 
     [Fact]
@@ -281,7 +283,9 @@ public sealed class ShadowEvaluationTests
                 "v2",
                 "Customer request",
                 "Visible production output",
-                DateTimeOffset.Parse("2026-09-23T10:00:00Z")),
+                DateTimeOffset.Parse("2026-09-23T10:00:00Z"),
+                ExperimentId: "experiment-test",
+                AssignedPromptVersion: "v1"),
             attempt);
 
     private sealed class CountingGateway : IChatGateway

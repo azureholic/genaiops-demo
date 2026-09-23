@@ -11,7 +11,9 @@ public sealed record ShadowWorkItem(
     string CandidatePromptVersion,
     string Input,
     string ProductionOutput,
-    DateTimeOffset PublishedAt);
+    DateTimeOffset PublishedAt,
+    string? ExperimentId = null,
+    string? AssignedPromptVersion = null);
 
 public sealed record ShadowWorkDelivery(
     ShadowWorkItem Work,

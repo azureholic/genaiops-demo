@@ -36,7 +36,9 @@ public sealed record ChatResponse(
     string ProviderResponseId,
     IReadOnlyList<ChatCitation> Citations,
     IReadOnlyList<ChatToolCall> ToolCalls,
-    ChatUsage? Usage);
+    ChatUsage? Usage,
+    string AssignedPromptVersion,
+    string? ExperimentId);
 
 public interface IChatGateway
 {
@@ -51,7 +53,8 @@ public interface IChatService
         string registryId,
         string message,
         string correlationId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? assignmentKey = null);
 }
 
 public abstract class ChatException(string code, string message, Exception? innerException = null)

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using GenAIOps.Application.Chat;
+using GenAIOps.Application.Experiments;
 using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
@@ -148,6 +149,8 @@ if (!string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnore
     builder.Services.AddHostedService<ShadowEvaluationBackgroundService>();
 }
 builder.Services.AddSingleton<IChatService, ChatService>();
+builder.Services.AddSingleton<IExperimentService, ExperimentService>();
+builder.Services.AddSingleton<IExperimentRouter, ExperimentRouter>();
 
 string chatProvider = builder.Configuration["Chat:Provider"]
     ?? (builder.Environment.IsDevelopment() ? "Fake" : "Foundry");
@@ -220,6 +223,26 @@ app.UseExceptionHandler(errorApp =>
                 StatusCodes.Status412PreconditionFailed,
                 "Registry precondition failed",
                 release.Code),
+            ExperimentValidationException experiment => (
+                StatusCodes.Status400BadRequest,
+                "Invalid experiment",
+                experiment.Code),
+            ExperimentNotFoundException experiment => (
+                StatusCodes.Status404NotFound,
+                "Experiment not found",
+                experiment.Code),
+            ExperimentEligibilityException experiment => (
+                StatusCodes.Status422UnprocessableEntity,
+                "Ineligible experiment version",
+                experiment.Code),
+            ExperimentConcurrencyException experiment => (
+                StatusCodes.Status412PreconditionFailed,
+                "Experiment precondition failed",
+                experiment.Code),
+            ExperimentLifecycleException experiment => (
+                StatusCodes.Status409Conflict,
+                "Invalid experiment transition",
+                experiment.Code),
             QualityGateRejectedException release => (
                 StatusCodes.Status422UnprocessableEntity,
                 "Quality gate rejected",
@@ -282,6 +305,47 @@ app.Use(
     });
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapPost(
+    "/api/abtest",
+    async (
+        AbTestApiRequest request,
+        HttpContext context,
+        IExperimentService experiments,
+        CancellationToken cancellationToken) =>
+    {
+        if (!Enum.TryParse(
+                request.Action,
+                ignoreCase: true,
+                out ExperimentCommandAction action))
+        {
+            throw new ExperimentValidationException(
+                "Action must be start, update, or end.");
+        }
+
+        ExperimentResult result = await experiments.ExecuteAsync(
+            new ExperimentCommand(
+                string.IsNullOrWhiteSpace(request.RegistryId) ? "default" : request.RegistryId,
+                action,
+                request.Actor ?? string.Empty,
+                request.Name,
+                request.Allocations,
+                context.Request.Headers.IfMatch.FirstOrDefault()),
+            cancellationToken);
+        context.Response.Headers.ETag = result.ETag;
+        AbTestApiResponse response = new(result.Experiment, result.ETag);
+        return action == ExperimentCommandAction.Start
+            ? Results.Created("/api/abtest", response)
+            : Results.Ok(response);
+    })
+    .WithName("ManageAbTest")
+    .Produces<AbTestApiResponse>(StatusCodes.Status201Created)
+    .Produces<AbTestApiResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest)
+    .ProducesProblem(StatusCodes.Status404NotFound)
+    .ProducesProblem(StatusCodes.Status409Conflict)
+    .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+    .ProducesProblem(StatusCodes.Status422UnprocessableEntity);
+
 app.MapPost(
     "/api/promote/{version}",
     async (
@@ -423,7 +487,8 @@ app.MapPost(
             string.IsNullOrWhiteSpace(request.RegistryId) ? "default" : request.RegistryId,
             request.Message ?? string.Empty,
             correlationId,
-            cancellationToken);
+            cancellationToken,
+            context.Request.Headers["X-Assignment-Key"].FirstOrDefault());
         return Results.Ok(response);
     })
     .WithName("PostChat")
@@ -557,6 +622,15 @@ static ReleaseApiResponse ToReleaseResponse(ReleaseWorkflowResult result) =>
 internal sealed record ChatApiRequest(string? Message, string? RegistryId = null);
 
 internal sealed record ReleaseApiRequest(string? Actor, string? RegistryId = null);
+
+internal sealed record AbTestApiRequest(
+    string? Action,
+    string? Actor,
+    string? RegistryId = null,
+    string? Name = null,
+    IReadOnlyList<ExperimentAllocation>? Allocations = null);
+
+internal sealed record AbTestApiResponse(ExperimentRecord Experiment, string ETag);
 
 internal sealed record ReleaseApiResponse(
     string RegistryId,

@@ -213,5 +213,7 @@ public sealed class ShadowEvaluationProcessor(
             errorCode,
             errorMessage,
             work.PublishedAt,
-            completedAt);
+            completedAt,
+            work.ExperimentId,
+            work.AssignedPromptVersion);
 }
