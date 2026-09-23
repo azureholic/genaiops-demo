@@ -102,6 +102,11 @@ public sealed record MetricSnapshotRecord(
     string PromptVersion,
     DateTimeOffset WindowStart,
     DateTimeOffset WindowEnd,
+    DateTimeOffset GeneratedAt,
+    int SampleCount,
+    int SuccessfulCount,
+    int FailureCount,
+    IReadOnlyList<string> SourceEvaluationIds,
     IReadOnlyDictionary<string, double> Metrics) : IPersistedRecord
 {
     public int SchemaVersion => 1;

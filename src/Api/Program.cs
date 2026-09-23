@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using GenAIOps.Application.Chat;
+using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
 using GenAIOps.Application.Shadow;
@@ -7,6 +8,7 @@ using GenAIOps.Domain.Prompts;
 using GenAIOps.Domain.Records;
 using GenAIOps.Domain.Registry;
 using GenAIOps.Infrastructure.Chat;
+using GenAIOps.Infrastructure.Metrics;
 using GenAIOps.Infrastructure.Persistence;
 using GenAIOps.Infrastructure.Shadow;
 using Microsoft.AspNetCore.Diagnostics;
@@ -67,6 +69,37 @@ else
 }
 
 builder.Services.AddSingleton<IAgentRegistryService, AgentRegistryService>();
+string metricsRepositoryRoot = FindRepositoryRoot(builder.Environment.ContentRootPath)
+    ?? throw new InvalidOperationException("Repository root could not be found.");
+ContinuousEvaluationOptions continuousOptions = new(
+    builder.Configuration["ContinuousEvaluation:DatasetPath"]
+        ?? Path.Combine(metricsRepositoryRoot, "EvaluationData"),
+    builder.Configuration["ContinuousEvaluation:RegistryId"] ?? "default",
+    TimeSpan.FromMinutes(
+        builder.Configuration.GetValue("ContinuousEvaluation:IntervalMinutes", 60)),
+    TimeSpan.FromHours(
+        builder.Configuration.GetValue("ContinuousEvaluation:WindowHours", 24)));
+string continuousProvider = builder.Configuration["ContinuousEvaluation:Provider"]
+    ?? (builder.Environment.IsDevelopment() ? "Fake" : "Foundry");
+if (!string.Equals(continuousProvider, "Fake", StringComparison.OrdinalIgnoreCase)
+    && !string.Equals(continuousProvider, "Foundry", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        $"Unsupported continuous evaluation provider '{continuousProvider}'. "
+        + "Use 'Fake' or 'Foundry'.");
+}
+
+builder.Services.AddLocalContinuousEvaluation(
+    continuousOptions,
+    useFakeProvider: string.Equals(
+        continuousProvider,
+        "Fake",
+        StringComparison.OrdinalIgnoreCase));
+if (!string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHostedService<ContinuousEvaluationBackgroundService>();
+}
+
 ShadowProcessingOptions shadowOptions = new(
     TimeSpan.FromSeconds(builder.Configuration.GetValue("Shadow:TimeoutSeconds", 30)),
     builder.Configuration.GetValue("Shadow:MaximumAttempts", 3));
@@ -214,6 +247,48 @@ app.Use(
     });
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapGet(
+    "/api/metrics",
+    async (
+        string? registryId,
+        string? version,
+        DateTimeOffset? from,
+        DateTimeOffset? to,
+        int? pageSize,
+        string? continuationToken,
+        IMetricsQueryService metrics,
+        CancellationToken cancellationToken) =>
+    {
+        string resolvedRegistryId = string.IsNullOrWhiteSpace(registryId) ? "default" : registryId;
+        MetricsPage page = await metrics.QueryAsync(
+            new MetricsQuery(
+                resolvedRegistryId,
+                version,
+                from,
+                to,
+                pageSize ?? 50,
+                continuationToken),
+            cancellationToken);
+        return Results.Ok(
+            new MetricsResponse(
+                resolvedRegistryId,
+                page.Items.Select(
+                    snapshot => new MetricSnapshotResponse(
+                        snapshot.Id,
+                        snapshot.PromptVersion,
+                        snapshot.WindowStart,
+                        snapshot.WindowEnd,
+                        snapshot.GeneratedAt,
+                        snapshot.SampleCount,
+                        snapshot.SuccessfulCount,
+                        snapshot.FailureCount,
+                        snapshot.Metrics)).ToArray(),
+                page.ContinuationToken));
+    })
+    .WithName("GetMetrics")
+    .Produces<MetricsResponse>()
+    .ProducesProblem(StatusCodes.Status400BadRequest);
+
 app.MapGet(
     "/api/evaluations",
     async (
@@ -399,6 +474,22 @@ internal sealed record EvaluationSummary(
     string? ErrorMessage,
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt);
+
+internal sealed record MetricsResponse(
+    string RegistryId,
+    IReadOnlyList<MetricSnapshotResponse> Snapshots,
+    string? ContinuationToken);
+
+internal sealed record MetricSnapshotResponse(
+    string Id,
+    string PromptVersion,
+    DateTimeOffset WindowStart,
+    DateTimeOffset WindowEnd,
+    DateTimeOffset GeneratedAt,
+    int SampleCount,
+    int SuccessfulCount,
+    int FailureCount,
+    IReadOnlyDictionary<string, double> Metrics);
 
 internal sealed record VersionsResponse(
     string RegistryId,

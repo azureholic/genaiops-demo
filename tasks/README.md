@@ -28,8 +28,8 @@ These files break the specification into commit-sized implementation tasks. Comp
 | 03 | Cosmos DB persistence and agent registry | 01 | complete |
 | 04 | Foundry agent gateway and chat API | 02, 03 | complete |
 | 05 | Shadow testing and evaluation worker | 04 | complete |
-| 06 | Metrics aggregation and continuous evaluation | 05 | ready |
-| 07 | Promotion and rollback workflows | 03, 06 | blocked |
+| 06 | Metrics aggregation and continuous evaluation | 05 | complete |
+| 07 | Promotion and rollback workflows | 03, 06 | ready |
 | 08 | A/B routing and experiment API | 04, 07 | blocked |
 | 09 | Observability and real-time updates | 04, 05, 06, 07, 08 | blocked |
 | 10 | Web application shell and home dashboard | 01, 06, 09 | blocked |
