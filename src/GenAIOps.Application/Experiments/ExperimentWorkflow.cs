@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using GenAIOps.Application.Chat;
+using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
 using GenAIOps.Domain.Records;
@@ -298,6 +299,8 @@ public sealed class ExperimentRouter(IRepository<ExperimentRecord> experiments) 
         string? assignmentKey,
         CancellationToken cancellationToken = default)
     {
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation("routing.assign", "routing");
         StoredItem<ExperimentRecord>? stored = await experiments.GetAsync(
             ExperimentService.RecordId,
             registryId,
@@ -306,11 +309,14 @@ public sealed class ExperimentRouter(IRepository<ExperimentRecord> experiments) 
         {
             AgentAssignment production = registry.State.Production
                 ?? throw new ProductionAgentNotFoundException(registryId);
-            return new ExperimentAssignment(
+            ExperimentAssignment assignment = new(
                 ExperimentId: null,
                 production.AgentId,
                 production.PromptVersion,
                 DateTimeOffset.UtcNow);
+            operation.SetPromptVersion(assignment.PromptVersion);
+            operation.Complete("success", routeType: "production");
+            return assignment;
         }
 
         if (string.IsNullOrWhiteSpace(assignmentKey)
@@ -328,13 +334,16 @@ public sealed class ExperimentRouter(IRepository<ExperimentRecord> experiments) 
                 upperBound += allocation.Percentage;
                 return bucket < upperBound;
             });
-        return new ExperimentAssignment(
+        ExperimentAssignment selectedAssignment = new(
             stored.Value.ExperimentId,
             selected.AgentId
                 ?? throw new ExperimentLifecycleException(
                     "The experiment allocation is missing its approved agent assignment."),
             selected.PromptVersion,
             DateTimeOffset.UtcNow);
+        operation.SetPromptVersion(selectedAssignment.PromptVersion);
+        operation.Complete("success", routeType: "experiment");
+        return selectedAssignment;
     }
 
     public static int GetBucket(string experimentId, string assignmentKey)

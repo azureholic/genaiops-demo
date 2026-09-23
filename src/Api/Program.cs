@@ -11,6 +11,7 @@ using GenAIOps.Domain.Records;
 using GenAIOps.Domain.Registry;
 using GenAIOps.Infrastructure.Chat;
 using GenAIOps.Infrastructure.Metrics;
+using GenAIOps.Infrastructure.Observability;
 using GenAIOps.Infrastructure.Persistence;
 using GenAIOps.Infrastructure.Releases;
 using GenAIOps.Infrastructure.Shadow;
@@ -46,6 +47,7 @@ if (args is ["validate-prompts"])
 }
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddGenAIOpsObservability(builder.Configuration, "genaiops-api");
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();

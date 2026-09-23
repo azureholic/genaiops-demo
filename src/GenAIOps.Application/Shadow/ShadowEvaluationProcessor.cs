@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using GenAIOps.Application.Chat;
+using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Domain.Records;
 
@@ -38,6 +39,12 @@ public sealed class ShadowEvaluationProcessor(
     {
         options.Validate();
         ShadowWorkItem work = delivery.Work;
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation(
+                "shadow.execute",
+                "shadow",
+                work.CandidatePromptVersion,
+                GenAIOpsTelemetry.ParsePropagationContext(work.TraceParent, work.TraceState));
         StoredItem<ShadowEvaluationRecord>? existing =
             await repository.GetAsync(work.CorrelationId, work.RegistryId, cancellationToken);
         if (existing is not null
@@ -46,6 +53,10 @@ public sealed class ShadowEvaluationProcessor(
                 or EvaluationLifecycle.Poisoned
                 || existing.Value.AttemptCount >= delivery.Attempt))
         {
+            operation.Complete(
+                "duplicate",
+                lifecycle: existing.Value.Lifecycle.ToString().ToLowerInvariant(),
+                disposition: "duplicate");
             return new ShadowProcessingResult(ShadowProcessingDisposition.Duplicate);
         }
 
@@ -68,6 +79,7 @@ public sealed class ShadowEvaluationProcessor(
         }
         catch (RecordConflictException)
         {
+            operation.Complete("duplicate", disposition: "duplicate");
             return new ShadowProcessingResult(ShadowProcessingDisposition.Duplicate);
         }
 
@@ -87,9 +99,18 @@ public sealed class ShadowEvaluationProcessor(
                 timeout.Token);
             candidateOutput = candidate.Message;
             stopwatch.Stop();
-            EvaluationScores scores = await evaluator.EvaluateAsync(
-                new EvaluationInput(work.Input, work.ProductionOutput, candidate),
-                timeout.Token);
+            EvaluationScores scores;
+            using (GenAIOpsTelemetry.TelemetryOperation evaluation =
+                GenAIOpsTelemetry.StartOperation(
+                    "shadow.evaluate",
+                    "evaluation",
+                    work.CandidatePromptVersion))
+            {
+                scores = await evaluator.EvaluateAsync(
+                    new EvaluationInput(work.Input, work.ProductionOutput, candidate),
+                    timeout.Token);
+                evaluation.Complete("success", lifecycle: "completed");
+            }
             await repository.ReplaceAsync(
                 CreateRecord(
                     work,
@@ -103,6 +124,10 @@ public sealed class ShadowEvaluationProcessor(
                     DateTimeOffset.UtcNow),
                 claim.ETag,
                 cancellationToken);
+            operation.Complete(
+                "success",
+                lifecycle: "completed",
+                disposition: "completed");
             return new ShadowProcessingResult(ShadowProcessingDisposition.Completed);
         }
         catch (Exception exception) when (
@@ -128,6 +153,10 @@ public sealed class ShadowEvaluationProcessor(
                         completedAt: null),
                     claim.ETag,
                     CancellationToken.None);
+                operation.Complete(
+                    "failure",
+                    lifecycle: "pending",
+                    disposition: "retry");
                 return new ShadowProcessingResult(ShadowProcessingDisposition.Retry, code);
             }
 
@@ -144,6 +173,10 @@ public sealed class ShadowEvaluationProcessor(
                     DateTimeOffset.UtcNow),
                 claim.ETag,
                 CancellationToken.None);
+            operation.Complete(
+                "poisoned",
+                lifecycle: "poisoned",
+                disposition: "poisoned");
             return new ShadowProcessingResult(ShadowProcessingDisposition.Poisoned, code);
         }
         catch (Exception exception)
@@ -164,6 +197,10 @@ public sealed class ShadowEvaluationProcessor(
                         completedAt: null),
                     claim.ETag,
                     CancellationToken.None);
+                operation.Complete(
+                    "failure",
+                    lifecycle: "pending",
+                    disposition: "retry");
                 return new ShadowProcessingResult(ShadowProcessingDisposition.Retry, code);
             }
 
@@ -180,6 +217,10 @@ public sealed class ShadowEvaluationProcessor(
                     DateTimeOffset.UtcNow),
                 claim.ETag,
                 CancellationToken.None);
+            operation.Complete(
+                "poisoned",
+                lifecycle: "failed",
+                disposition: "poisoned");
             return new ShadowProcessingResult(ShadowProcessingDisposition.Poisoned, code);
         }
     }
@@ -215,5 +256,7 @@ public sealed class ShadowEvaluationProcessor(
             work.PublishedAt,
             completedAt,
             work.ExperimentId,
-            work.AssignedPromptVersion);
+            work.AssignedPromptVersion,
+            work.TraceParent,
+            work.TraceState);
 }

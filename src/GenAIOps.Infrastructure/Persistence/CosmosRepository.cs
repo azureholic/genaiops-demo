@@ -57,18 +57,14 @@ public sealed class CosmosRepository<T>(
                 id,
                 new PartitionKey(partitionKey),
                 cancellationToken: cancellationToken);
-            LogDiagnostics("read", id, response.RequestCharge, response.ActivityId, response.Diagnostics);
+            LogDiagnostics("read", response.RequestCharge);
             return new StoredItem<T>(response.Resource, response.ETag);
         }
         catch (CosmosException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
         {
             logger.LogInformation(
-                "Cosmos read did not find {RecordType} {RecordId} in partition {PartitionKey}. ActivityId: {ActivityId}. Diagnostics: {Diagnostics}",
-                typeof(T).Name,
-                id,
-                partitionKey,
-                exception.ActivityId,
-                exception.Diagnostics);
+                "Cosmos read did not find a {RecordType} record.",
+                typeof(T).Name);
             return null;
         }
     }
@@ -83,7 +79,7 @@ public sealed class CosmosRepository<T>(
                 item,
                 new PartitionKey(item.PartitionKey),
                 cancellationToken: cancellationToken);
-            LogDiagnostics("create", item.Id, response.RequestCharge, response.ActivityId, response.Diagnostics);
+            LogDiagnostics("create", response.RequestCharge);
             return new StoredItem<T>(response.Resource, response.ETag);
         }
         catch (CosmosException exception) when (exception.StatusCode == HttpStatusCode.Conflict)
@@ -110,7 +106,7 @@ public sealed class CosmosRepository<T>(
                 new PartitionKey(item.PartitionKey),
                 requestOptions,
                 cancellationToken);
-            LogDiagnostics("replace", item.Id, response.RequestCharge, response.ActivityId, response.Diagnostics);
+            LogDiagnostics("replace", response.RequestCharge);
             return new StoredItem<T>(response.Resource, response.ETag);
         }
         catch (CosmosException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
@@ -156,11 +152,9 @@ public sealed class CosmosRepository<T>(
 
         FeedResponse<JsonElement> response = await iterator.ReadNextAsync(cancellationToken);
         logger.LogInformation(
-            "Cosmos query for {RecordType} consumed {RequestCharge} RU. ActivityId: {ActivityId}. Diagnostics: {Diagnostics}",
+            "Cosmos query for {RecordType} consumed {RequestCharge} RU.",
             typeof(T).Name,
-            response.RequestCharge,
-            response.ActivityId,
-            response.Diagnostics);
+            response.RequestCharge);
         StoredItem<T>[] records = response
             .Select(item =>
             {
@@ -176,21 +170,14 @@ public sealed class CosmosRepository<T>(
     }
 
     private static string CosmosFailureMessage(CosmosException exception) =>
-        $"Cosmos returned {(int)exception.StatusCode} ({exception.StatusCode}); "
-        + $"activityId={exception.ActivityId}; diagnostics={exception.Diagnostics}";
+        $"Cosmos returned {(int)exception.StatusCode} ({exception.StatusCode}).";
 
     private void LogDiagnostics(
         string operation,
-        string id,
-        double requestCharge,
-        string activityId,
-        CosmosDiagnostics diagnostics) =>
+        double requestCharge) =>
         logger.LogInformation(
-            "Cosmos {Operation} for {RecordType} {RecordId} consumed {RequestCharge} RU. ActivityId: {ActivityId}. Diagnostics: {Diagnostics}",
+            "Cosmos {Operation} for {RecordType} consumed {RequestCharge} RU.",
             operation,
             typeof(T).Name,
-            id,
-            requestCharge,
-            activityId,
-            diagnostics);
+            requestCharge);
 }

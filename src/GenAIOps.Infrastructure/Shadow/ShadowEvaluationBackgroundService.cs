@@ -33,8 +33,7 @@ public sealed class ShadowEvaluationBackgroundService(
             {
                 logger.LogError(
                     exception,
-                    "Unexpected shadow processing failure for {CorrelationId}.",
-                    delivery.Work.CorrelationId);
+                    "Unexpected shadow processing failure.");
                 if (delivery.Attempt >= options.MaximumAttempts)
                 {
                     queue.DeadLetter(delivery, "unexpected_processing_failure");

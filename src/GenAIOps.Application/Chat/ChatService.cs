@@ -1,4 +1,5 @@
 using GenAIOps.Application.Experiments;
+using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
 using GenAIOps.Application.Shadow;
@@ -23,6 +24,8 @@ public sealed class ChatService(
         CancellationToken cancellationToken = default,
         string? assignmentKey = null)
     {
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation("chat.send", "chat");
         Validate(registryId, message, correlationId);
 
         RegistrySnapshot? snapshot;
@@ -61,6 +64,7 @@ public sealed class ChatService(
             assignment.PromptVersion,
             AssignmentSlot.Production,
             assignment.AssignedAt);
+        operation.SetPromptVersion(routed.PromptVersion);
 
         ChatGatewayRequest gatewayRequest = new(
             routed.AgentId,
@@ -70,7 +74,16 @@ public sealed class ChatService(
 
         try
         {
-            ChatGatewayResponse result = await gateway.SendAsync(gatewayRequest, cancellationToken);
+            ChatGatewayResponse result;
+            using (GenAIOpsTelemetry.TelemetryOperation invocation =
+                GenAIOpsTelemetry.StartOperation(
+                    "chat.provider.invoke",
+                    "chat.provider",
+                    routed.PromptVersion))
+            {
+                result = await gateway.SendAsync(gatewayRequest, cancellationToken);
+                invocation.Complete("success");
+            }
             await PersistMetadataAsync(
                 registryId,
                 routed,
@@ -82,7 +95,7 @@ public sealed class ChatService(
             if (snapshot?.State.Candidate is { } candidate)
             {
                 TryPublishShadow(
-                    new ShadowWorkItem(
+                    CreateShadowWorkItem(
                         correlationId,
                         registryId,
                         routed.AgentId,
@@ -96,6 +109,7 @@ public sealed class ChatService(
                         assignment.PromptVersion));
             }
 
+            operation.Complete("success");
             return new ChatResponse(
                 result.Message,
                 correlationId,
@@ -108,6 +122,7 @@ public sealed class ChatService(
         }
         catch (OperationCanceledException exception)
         {
+            operation.Complete("cancelled");
             await PersistMetadataAsync(
                 registryId,
                 routed,
@@ -120,6 +135,7 @@ public sealed class ChatService(
         }
         catch (ChatProviderException)
         {
+            operation.Complete("failure");
             await PersistMetadataAsync(
                 registryId,
                 routed,
@@ -132,10 +148,12 @@ public sealed class ChatService(
         }
         catch (ChatMetadataPersistenceException)
         {
+            operation.Complete("failure");
             throw;
         }
         catch (Exception exception)
         {
+            operation.Complete("failure");
             await PersistMetadataAsync(
                 registryId,
                 routed,
@@ -146,6 +164,37 @@ public sealed class ChatService(
                 null);
             throw new ChatProviderException("The Foundry agent request failed.", exception);
         }
+    }
+
+    private static ShadowWorkItem CreateShadowWorkItem(
+            string correlationId,
+            string registryId,
+            string productionAgentId,
+            string productionPromptVersion,
+            string candidateAgentId,
+            string candidatePromptVersion,
+            string input,
+            string productionOutput,
+            DateTimeOffset publishedAt,
+            string? experimentId,
+            string? assignedPromptVersion)
+    {
+        (string? traceParent, string? traceState) =
+            GenAIOpsTelemetry.CapturePropagationContext();
+        return new ShadowWorkItem(
+            correlationId,
+            registryId,
+            productionAgentId,
+            productionPromptVersion,
+            candidateAgentId,
+            candidatePromptVersion,
+            input,
+            productionOutput,
+            publishedAt,
+            experimentId,
+            assignedPromptVersion,
+            traceParent,
+            traceState);
     }
 
     private static void Validate(string registryId, string message, string correlationId)

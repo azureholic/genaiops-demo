@@ -1,10 +1,14 @@
 using GenAIOps.Application.Registry;
 using GenAIOps.Application.Shadow;
 using GenAIOps.Infrastructure.Chat;
+using GenAIOps.Infrastructure.Observability;
 using GenAIOps.Infrastructure.Persistence;
 using GenAIOps.Infrastructure.Shadow;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddGenAIOpsObservability(
+    builder.Configuration,
+    "genaiops-shadow-evaluator");
 string persistenceProvider = builder.Configuration["Persistence:Provider"] ?? "InMemory";
 if (string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnoreCase))
 {

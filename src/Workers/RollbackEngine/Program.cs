@@ -1,10 +1,14 @@
 using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Registry;
 using GenAIOps.Infrastructure.Metrics;
+using GenAIOps.Infrastructure.Observability;
 using GenAIOps.Infrastructure.Persistence;
 using GenAIOps.Infrastructure.Releases;
 
 var builder = Host.CreateApplicationBuilder(args);
+builder.Services.AddGenAIOpsObservability(
+    builder.Configuration,
+    "genaiops-rollback-engine");
 AddPersistence(builder);
 builder.Services.AddSingleton<IAgentRegistryService, AgentRegistryService>();
 builder.Services.AddSingleton<IMetricsQueryService, MetricsQueryService>();

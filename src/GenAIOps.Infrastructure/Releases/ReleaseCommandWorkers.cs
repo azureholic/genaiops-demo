@@ -31,7 +31,7 @@ public sealed class PromotionCommandWorker(
             return;
         }
 
-        ReleaseWorkflowResult result = await workflows.PromoteAsync(
+        await workflows.PromoteAsync(
             options.Version,
             new ReleaseCommand(
                 options.RegistryId,
@@ -39,11 +39,7 @@ public sealed class PromotionCommandWorker(
                 options.IdempotencyKey,
                 options.ExpectedETag),
             stoppingToken);
-        logger.LogInformation(
-            "Promoted {Version} in {RegistryId}; release {ReleaseId}.",
-            options.Version,
-            options.RegistryId,
-            result.Release.Id);
+        logger.LogInformation("Promotion completed for {Version}.", options.Version);
     }
 }
 
@@ -67,9 +63,7 @@ public sealed class RollbackCommandWorker(
                 options.ExpectedETag),
             stoppingToken);
         logger.LogInformation(
-            "Rolled back {RegistryId} to {Version}; release {ReleaseId}.",
-            options.RegistryId,
-            result.Release.PromptVersion,
-            result.Release.Id);
+            "Rollback completed to {Version}.",
+            result.Release.PromptVersion);
     }
 }

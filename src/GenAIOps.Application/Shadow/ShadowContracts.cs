@@ -13,7 +13,9 @@ public sealed record ShadowWorkItem(
     string ProductionOutput,
     DateTimeOffset PublishedAt,
     string? ExperimentId = null,
-    string? AssignedPromptVersion = null);
+    string? AssignedPromptVersion = null,
+    string? TraceParent = null,
+    string? TraceState = null);
 
 public sealed record ShadowWorkDelivery(
     ShadowWorkItem Work,

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using GenAIOps.Application.Metrics;
+using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Application.Registry;
 using GenAIOps.Domain.Records;
@@ -120,6 +121,34 @@ public sealed class ReleaseWorkflowService(
         string version,
         ReleaseCommand command,
         CancellationToken cancellationToken = default)
+    {
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation("release.promote", "promotion", version);
+        try
+        {
+            ReleaseWorkflowResult result =
+                await PromoteCoreAsync(version, command, cancellationToken);
+            operation.Complete(
+                "success",
+                lifecycle: result.Release.Lifecycle.ToString().ToLowerInvariant());
+            return result;
+        }
+        catch (QualityGateRejectedException)
+        {
+            operation.Complete("rejected", lifecycle: "rejected", gateResult: "failed");
+            throw;
+        }
+        catch
+        {
+            operation.Complete("failure");
+            throw;
+        }
+    }
+
+    private async Task<ReleaseWorkflowResult> PromoteCoreAsync(
+        string version,
+        ReleaseCommand command,
+        CancellationToken cancellationToken)
     {
         Validate(version, command);
         string releaseId = CreateReleaseId(command.RegistryId, command.IdempotencyKey);
@@ -248,6 +277,28 @@ public sealed class ReleaseWorkflowService(
         ReleaseCommand command,
         CancellationToken cancellationToken = default)
     {
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation("release.rollback", "rollback");
+        try
+        {
+            ReleaseWorkflowResult result = await RollbackCoreAsync(command, cancellationToken);
+            operation.SetPromptVersion(result.Release.PromptVersion);
+            operation.Complete(
+                "success",
+                lifecycle: result.Release.Lifecycle.ToString().ToLowerInvariant());
+            return result;
+        }
+        catch
+        {
+            operation.Complete("failure");
+            throw;
+        }
+    }
+
+    private async Task<ReleaseWorkflowResult> RollbackCoreAsync(
+        ReleaseCommand command,
+        CancellationToken cancellationToken)
+    {
         Validate(version: null, command);
         string releaseId = CreateReleaseId(command.RegistryId, command.IdempotencyKey);
         ReleaseRecord? replay = await GetReplayAsync(
@@ -349,6 +400,8 @@ public sealed class ReleaseWorkflowService(
         string version,
         CancellationToken cancellationToken)
     {
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation("quality-gate.evaluate", "quality_gate", version);
         gates.Validate();
         MetricsPage page = await metrics.QueryAsync(
             new MetricsQuery(
@@ -378,7 +431,7 @@ public sealed class ReleaseWorkflowService(
             CheckMaximum(snapshot, "latencyMilliseconds", maximumLatency, reasons);
         }
 
-        return new ReleaseGateEvidence(
+        ReleaseGateEvidence evidence = new(
             snapshot.Id,
             snapshot.WindowStart,
             snapshot.WindowEnd,
@@ -387,6 +440,10 @@ public sealed class ReleaseWorkflowService(
             gates.ToDictionary(),
             reasons.Count == 0,
             reasons);
+        operation.Complete(
+            evidence.Passed ? "success" : "rejected",
+            gateResult: evidence.Passed ? "passed" : "failed");
+        return evidence;
     }
 
     private async Task<ReleaseRecord?> GetReplayAsync(

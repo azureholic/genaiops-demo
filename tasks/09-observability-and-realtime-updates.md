@@ -1,7 +1,7 @@
 # Task 09: Observability and Real-Time Updates
 
-**Status:** blocked  
-**Depends on:** Tasks 09A and 09B  
+**Status:** blocked
+**Depends on:** Tasks 09A and 09B
 **Integration commit subject:** `feat: integrate observability and realtime updates`
 
 ## Goal

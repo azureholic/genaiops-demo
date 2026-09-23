@@ -245,7 +245,9 @@ public sealed record ShadowEvaluationRecord(
     DateTimeOffset CreatedAt,
     DateTimeOffset? CompletedAt,
     string? ExperimentId = null,
-    string? AssignedPromptVersion = null) : IPersistedRecord
+    string? AssignedPromptVersion = null,
+    string? TraceParent = null,
+    string? TraceState = null) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 
@@ -268,7 +270,9 @@ public sealed record ShadowWorkRecord(
     int AttemptCount,
     string? DeadLetterReason,
     string? ExperimentId = null,
-    string? AssignedPromptVersion = null) : IPersistedRecord
+    string? AssignedPromptVersion = null,
+    string? TraceParent = null,
+    string? TraceState = null) : IPersistedRecord
 {
     public int SchemaVersion => 1;
 

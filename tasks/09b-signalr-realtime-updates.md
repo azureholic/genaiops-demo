@@ -1,7 +1,7 @@
 # Task 09B: SignalR Real-Time Updates
 
-**Status:** blocked  
-**Depends on:** Task 09A  
+**Status:** ready
+**Depends on:** Task 09A
 **Commit subject:** `feat: add SignalR realtime updates`
 
 ## Goal

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Domain.Records;
 
@@ -16,6 +17,15 @@ public sealed class MetricsAggregator(
         window.Validate();
         IReadOnlyList<ShadowEvaluationRecord> records =
             await ReadEvaluationsAsync(window.RegistryId, cancellationToken);
+        ShadowEvaluationRecord? correlated = records.FirstOrDefault(record =>
+            !string.IsNullOrWhiteSpace(record.TraceParent));
+        using GenAIOpsTelemetry.TelemetryOperation operation =
+            GenAIOpsTelemetry.StartOperation(
+                "metrics.aggregate",
+                "aggregation",
+                parentContext: GenAIOpsTelemetry.ParsePropagationContext(
+                    correlated?.TraceParent,
+                    correlated?.TraceState));
         ShadowEvaluationRecord[] inWindow = records
             .Where(record =>
                 record.CreatedAt >= window.Start
@@ -66,8 +76,10 @@ public sealed class MetricsAggregator(
                 sourceIds,
                 metrics);
             results.Add(await CreateIdempotentlyAsync(snapshot, cancellationToken));
+            GenAIOpsTelemetry.RecordSamples(group.Key, sampleCount, "success");
         }
 
+        operation.Complete("success");
         return results;
     }
 
