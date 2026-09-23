@@ -33,11 +33,11 @@ These files break the specification into commit-sized implementation tasks. Comp
 | 08 | A/B routing and experiment API | 04, 07 | complete |
 | 09A | OpenTelemetry observability | 04, 05, 06, 07, 08 | complete |
 | 09B | SignalR real-time updates | 09A | complete |
-| 09 | Observability and real-time updates integration gate | 09A, 09B | ready |
-| 10 | Web application shell and home dashboard | 01, 06, 09 | blocked |
+| 09 | Observability and real-time updates integration gate | 09A, 09B | complete |
+| 10 | Web application shell and home dashboard | 01, 06, 09 | ready |
 | 11 | Prompt registry and release history dashboards | 07, 10 | blocked |
 | 12 | Shadow testing and evaluation dashboards | 05, 06, 10 | blocked |
-| 13 | Azure infrastructure and container deployment | 04, 05, 06, 07, 08, 09 | blocked |
+| 13 | Azure infrastructure and container deployment | 04, 05, 06, 07, 08, 09 | ready |
 | 14 | GitHub Actions CI/CD workflows | 02, 13 | blocked |
 | 15 | End-to-end demo validation and documentation | 11, 12, 14 | blocked |
 

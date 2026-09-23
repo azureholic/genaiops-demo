@@ -1,6 +1,6 @@
 # Task 09: Observability and Real-Time Updates
 
-**Status:** ready
+**Status:** complete  
 **Depends on:** Tasks 09A and 09B
 **Integration commit subject:** `feat: integrate observability and realtime updates`
 
@@ -76,3 +76,9 @@ dotnet test GenAIOps.slnx --filter "Telemetry|SignalR|Observability"
 
 - [Task 09A](09a-opentelemetry-observability.md) owns tracing, metrics, logging, and Azure Monitor export.
 - [Task 09B](09b-signalr-realtime-updates.md) owns typed SignalR contracts, publication, and delivery tests.
+
+## Evidence
+
+- Task 09A completed in commit `1d4f9968736b794833c2ded56af5746c8531556a`.
+- Task 09B completed in commit `45613ae08fe126b51cda3de4d0891ad1cd69d38a`.
+- Combined telemetry, observability, and SignalR gate passed 10 tests.
