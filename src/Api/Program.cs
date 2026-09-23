@@ -312,6 +312,7 @@ app.Use(
     });
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapGet("/ready", () => Results.Ok(new { status = "Ready" }));
 app.MapHub<RealtimeHub>("/hubs/realtime");
 app.MapPost(
     "/api/abtest",

@@ -20,7 +20,8 @@ appsettings.*.local.json
 secrets.json
 
 # Azure tooling
-.azure/
+.azure/*
+!.azure/deployment-plan.md
 .azd/
 
 # IDE and operating system files

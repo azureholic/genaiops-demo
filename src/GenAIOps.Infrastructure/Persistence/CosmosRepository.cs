@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Azure.Identity;
 using GenAIOps.Application.Persistence;
 using GenAIOps.Domain.Persistence;
 using Microsoft.Azure.Cosmos;
@@ -32,7 +33,7 @@ public static class CosmosClientFactory
         };
 
         return string.IsNullOrWhiteSpace(options.Key)
-            ? new CosmosClient(options.Endpoint, clientOptions)
+            ? new CosmosClient(options.Endpoint, new DefaultAzureCredential(), clientOptions)
             : new CosmosClient(options.Endpoint, options.Key, clientOptions);
     }
 }

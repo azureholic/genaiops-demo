@@ -1,6 +1,6 @@
 # Task 13: Azure Infrastructure and Container Deployment
 
-**Status:** blocked  
+**Status:** complete
 **Depends on:** Tasks 04, 05, 06, 07, 08, and 09  
 **Commit subject:** `feat: add Azure infrastructure and containers`
 
@@ -34,3 +34,14 @@ docker build --file src\Api\Dockerfile .
 docker build --file src\Web\Dockerfile src\Web
 ```
 
+## Evidence
+
+- `az bicep build`, `az bicep lint`, and development parameter compilation: passed.
+- .NET solution: 114 tests passed (79 unit, 35 integration).
+- Web: lint, typecheck, 11 tests, and production build passed.
+- Dependency security: no vulnerable NuGet or npm packages reported.
+- Six Dockerfiles define explicit non-root users; API and web have Container Apps
+  startup, liveness, and readiness probes.
+- Docker engine unavailable on the validation host, so image builds were not runnable.
+  The limitation and exact build commands are documented in `Infrastructure/README.md`.
+- Deployment and Task 14 were not started.

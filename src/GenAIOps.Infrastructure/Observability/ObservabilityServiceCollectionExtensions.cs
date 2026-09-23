@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using Azure.Core;
+using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using GenAIOps.Application.Observability;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +32,8 @@ public static class ObservabilityServiceCollectionExtensions
                 + "Observability:AzureMonitor:Enabled is true.");
         }
 
+        TokenCredential? azureMonitorCredential =
+            azureMonitorEnabled ? new DefaultAzureCredential() : null;
         ResourceBuilder resource = ResourceBuilder.CreateDefault().AddService(serviceName);
         services
             .AddOpenTelemetry()
@@ -57,7 +61,10 @@ public static class ObservabilityServiceCollectionExtensions
                 if (azureMonitorEnabled)
                 {
                     builder.AddAzureMonitorTraceExporter(options =>
-                        options.ConnectionString = connectionString);
+                    {
+                        options.ConnectionString = connectionString;
+                        options.Credential = azureMonitorCredential;
+                    });
                 }
             })
             .WithMetrics(builder =>
@@ -69,7 +76,10 @@ public static class ObservabilityServiceCollectionExtensions
                 if (azureMonitorEnabled)
                 {
                     builder.AddAzureMonitorMetricExporter(options =>
-                        options.ConnectionString = connectionString);
+                    {
+                        options.ConnectionString = connectionString;
+                        options.Credential = azureMonitorCredential;
+                    });
                 }
             });
 
@@ -84,7 +94,10 @@ public static class ObservabilityServiceCollectionExtensions
                 if (azureMonitorEnabled)
                 {
                     options.AddAzureMonitorLogExporter(exporter =>
-                        exporter.ConnectionString = connectionString);
+                    {
+                        exporter.ConnectionString = connectionString;
+                        exporter.Credential = azureMonitorCredential;
+                    });
                 }
             });
         return services;

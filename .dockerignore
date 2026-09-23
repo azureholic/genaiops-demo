@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.vs/
+**/.vscode/
+.azure/
+.git/
+.github/
+Infrastructure/
+tasks/
+tests/
+docs/
+*.user
+*.suo
