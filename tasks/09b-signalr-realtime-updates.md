@@ -1,6 +1,6 @@
 # Task 09B: SignalR Real-Time Updates
 
-**Status:** ready
+**Status:** complete
 **Depends on:** Task 09A
 **Commit subject:** `feat: add SignalR realtime updates`
 
@@ -30,3 +30,18 @@ Deliver typed real-time metrics, evaluation, experiment, and release notificatio
 dotnet test GenAIOps.slnx --filter SignalR
 dotnet test GenAIOps.slnx
 ```
+
+## Evidence
+
+- Added provider-independent typed metrics, evaluation, experiment, and release update contracts
+  in the application layer, with payloads limited to operational state and aggregate values.
+- Hosted a strongly typed SignalR hub at `/hubs/realtime` and published workflow updates only
+  after successful persistence or completed release/experiment state transitions.
+- Registered a no-op publisher in every worker so workers start without an API hub.
+- Prevented duplicate, rejected, failed, and retrying operations from emitting success-shaped
+  updates; release rollback notifications retain the explicit `rolledBack` lifecycle.
+- Added real SignalR client integration coverage for negotiate, WebSocket connection, all four
+  typed event deliveries, successful release publication, rejection suppression, and sensitive
+  contract-field exclusion.
+- Validated with fresh proxy-only restore, build, filtered and full tests, format verification,
+  and `git diff --check`.

@@ -4,12 +4,14 @@ using GenAIOps.Infrastructure.Chat;
 using GenAIOps.Infrastructure.Metrics;
 using GenAIOps.Infrastructure.Observability;
 using GenAIOps.Infrastructure.Persistence;
+using GenAIOps.Infrastructure.Realtime;
 using GenAIOps.Infrastructure.Shadow;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddGenAIOpsObservability(
     builder.Configuration,
     "genaiops-metrics-aggregator");
+builder.Services.AddNoOpRealtimeUpdates();
 string persistenceProvider = builder.Configuration["Persistence:Provider"] ?? "InMemory";
 if (string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnoreCase))
 {

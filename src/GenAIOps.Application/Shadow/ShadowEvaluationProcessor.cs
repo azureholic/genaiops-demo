@@ -2,6 +2,7 @@ using System.Diagnostics;
 using GenAIOps.Application.Chat;
 using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
+using GenAIOps.Application.Realtime;
 using GenAIOps.Domain.Records;
 
 namespace GenAIOps.Application.Shadow;
@@ -31,8 +32,12 @@ public sealed class ShadowEvaluationProcessor(
     IChatGateway candidateGateway,
     IResponseEvaluator evaluator,
     IRepository<ShadowEvaluationRecord> repository,
-    ShadowProcessingOptions options) : IShadowEvaluationProcessor
+    ShadowProcessingOptions options,
+    IRealtimePublisher? realtimePublisher = null) : IShadowEvaluationProcessor
 {
+    private readonly IRealtimePublisher realtime =
+        realtimePublisher ?? NoOpRealtimePublisher.Instance;
+
     public async Task<ShadowProcessingResult> ProcessAsync(
         ShadowWorkDelivery delivery,
         CancellationToken cancellationToken = default)
@@ -111,7 +116,7 @@ public sealed class ShadowEvaluationProcessor(
                     timeout.Token);
                 evaluation.Complete("success", lifecycle: "completed");
             }
-            await repository.ReplaceAsync(
+            StoredItem<ShadowEvaluationRecord> completed = await repository.ReplaceAsync(
                 CreateRecord(
                     work,
                     candidateOutput,
@@ -123,6 +128,15 @@ public sealed class ShadowEvaluationProcessor(
                     null,
                     DateTimeOffset.UtcNow),
                 claim.ETag,
+                cancellationToken);
+            await realtime.PublishEvaluationAsync(
+                new EvaluationUpdated(
+                    completed.Value.ProductionPromptVersion,
+                    completed.Value.CandidatePromptVersion,
+                    "completed",
+                    completed.Value.Scores,
+                    completed.Value.CandidateLatencyMilliseconds,
+                    completed.Value.CompletedAt!.Value),
                 cancellationToken);
             operation.Complete(
                 "success",

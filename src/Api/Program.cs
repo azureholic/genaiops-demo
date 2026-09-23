@@ -1,8 +1,10 @@
 using System.Text.Json.Serialization;
+using GenAIOps.Api.Realtime;
 using GenAIOps.Application.Chat;
 using GenAIOps.Application.Experiments;
 using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Persistence;
+using GenAIOps.Application.Realtime;
 using GenAIOps.Application.Registry;
 using GenAIOps.Application.Releases;
 using GenAIOps.Application.Shadow;
@@ -51,6 +53,8 @@ builder.Services.AddGenAIOpsObservability(builder.Configuration, "genaiops-api")
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IRealtimePublisher, SignalRRealtimePublisher>();
 
 string persistenceProvider = builder.Configuration["Persistence:Provider"] ?? "InMemory";
 if (string.Equals(persistenceProvider, "Cosmos", StringComparison.OrdinalIgnoreCase))
@@ -307,6 +311,7 @@ app.Use(
     });
 
 app.MapGet("/health", () => Results.Ok(new { status = "Healthy" }));
+app.MapHub<RealtimeHub>("/hubs/realtime");
 app.MapPost(
     "/api/abtest",
     async (

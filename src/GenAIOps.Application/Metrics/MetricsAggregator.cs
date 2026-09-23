@@ -2,14 +2,19 @@ using System.Security.Cryptography;
 using System.Text;
 using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
+using GenAIOps.Application.Realtime;
 using GenAIOps.Domain.Records;
 
 namespace GenAIOps.Application.Metrics;
 
 public sealed class MetricsAggregator(
     IRepository<ShadowEvaluationRecord> evaluations,
-    IRepository<MetricSnapshotRecord> snapshots) : IMetricsAggregator
+    IRepository<MetricSnapshotRecord> snapshots,
+    IRealtimePublisher? realtimePublisher = null) : IMetricsAggregator
 {
+    private readonly IRealtimePublisher realtime =
+        realtimePublisher ?? NoOpRealtimePublisher.Instance;
+
     public async Task<IReadOnlyList<MetricSnapshotRecord>> AggregateAsync(
         AggregationWindow window,
         CancellationToken cancellationToken = default)
@@ -75,7 +80,23 @@ public sealed class MetricsAggregator(
                 failureCount,
                 sourceIds,
                 metrics);
-            results.Add(await CreateIdempotentlyAsync(snapshot, cancellationToken));
+            (MetricSnapshotRecord stored, bool created) =
+                await CreateIdempotentlyAsync(snapshot, cancellationToken);
+            results.Add(stored);
+            if (created)
+            {
+                await realtime.PublishMetricsAsync(
+                    new MetricsUpdated(
+                        stored.PromptVersion,
+                        stored.WindowStart,
+                        stored.WindowEnd,
+                        stored.SampleCount,
+                        stored.SuccessfulCount,
+                        stored.FailureCount,
+                        stored.Metrics,
+                        stored.GeneratedAt),
+                    cancellationToken);
+            }
             GenAIOpsTelemetry.RecordSamples(group.Key, sampleCount, "success");
         }
 
@@ -140,13 +161,13 @@ public sealed class MetricsAggregator(
         return records;
     }
 
-    private async Task<MetricSnapshotRecord> CreateIdempotentlyAsync(
+    private async Task<(MetricSnapshotRecord Snapshot, bool Created)> CreateIdempotentlyAsync(
         MetricSnapshotRecord snapshot,
         CancellationToken cancellationToken)
     {
         try
         {
-            return (await snapshots.CreateAsync(snapshot, cancellationToken)).Value;
+            return ((await snapshots.CreateAsync(snapshot, cancellationToken)).Value, true);
         }
         catch (RecordConflictException)
         {
@@ -154,9 +175,9 @@ public sealed class MetricsAggregator(
                 snapshot.Id,
                 snapshot.PartitionKey,
                 cancellationToken);
-            return existing?.Value
+            return (existing?.Value
                 ?? throw new InvalidOperationException(
-                    $"Metric snapshot '{snapshot.Id}' conflicted but could not be read.");
+                    $"Metric snapshot '{snapshot.Id}' conflicted but could not be read."), false);
         }
     }
 

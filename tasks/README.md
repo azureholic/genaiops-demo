@@ -32,8 +32,8 @@ These files break the specification into commit-sized implementation tasks. Comp
 | 07 | Promotion and rollback workflows | 03, 06 | complete |
 | 08 | A/B routing and experiment API | 04, 07 | complete |
 | 09A | OpenTelemetry observability | 04, 05, 06, 07, 08 | complete |
-| 09B | SignalR real-time updates | 09A | ready |
-| 09 | Observability and real-time updates integration gate | 09A, 09B | blocked |
+| 09B | SignalR real-time updates | 09A | complete |
+| 09 | Observability and real-time updates integration gate | 09A, 09B | ready |
 | 10 | Web application shell and home dashboard | 01, 06, 09 | blocked |
 | 11 | Prompt registry and release history dashboards | 07, 10 | blocked |
 | 12 | Shadow testing and evaluation dashboards | 05, 06, 10 | blocked |

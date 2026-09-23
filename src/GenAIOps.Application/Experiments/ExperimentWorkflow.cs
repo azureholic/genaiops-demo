@@ -4,6 +4,7 @@ using System.Text;
 using GenAIOps.Application.Chat;
 using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
+using GenAIOps.Application.Realtime;
 using GenAIOps.Application.Registry;
 using GenAIOps.Domain.Records;
 using GenAIOps.Domain.Registry;
@@ -65,8 +66,12 @@ public sealed class ExperimentLifecycleException(string message)
 
 public sealed class ExperimentService(
     IRepository<ExperimentRecord> experiments,
-    IAgentRegistryService registry) : IExperimentService
+    IAgentRegistryService registry,
+    IRealtimePublisher? realtimePublisher = null) : IExperimentService
 {
+    private readonly IRealtimePublisher realtime =
+        realtimePublisher ?? NoOpRealtimePublisher.Instance;
+
     public const string RecordId = "active-abtest";
 
     public async Task<ExperimentResult> ExecuteAsync(
@@ -122,7 +127,9 @@ public sealed class ExperimentService(
             StoredItem<ExperimentRecord> created = current is null
                 ? await experiments.CreateAsync(record, cancellationToken)
                 : await experiments.ReplaceAsync(record, current.ETag, cancellationToken);
-            return new ExperimentResult(created.Value, created.ETag);
+            ExperimentResult result = new(created.Value, created.ETag);
+            await PublishAsync(result.Experiment, cancellationToken);
+            return result;
         }
         catch (RecordConflictException exception)
         {
@@ -178,13 +185,29 @@ public sealed class ExperimentService(
         {
             StoredItem<ExperimentRecord> replaced =
                 await experiments.ReplaceAsync(record, expectedETag, cancellationToken);
-            return new ExperimentResult(replaced.Value, replaced.ETag);
+            ExperimentResult result = new(replaced.Value, replaced.ETag);
+            await PublishAsync(result.Experiment, cancellationToken);
+            return result;
         }
         catch (RecordConflictException exception)
         {
             throw new ExperimentConcurrencyException(exception.Message);
         }
     }
+
+    private Task PublishAsync(
+        ExperimentRecord experiment,
+        CancellationToken cancellationToken) =>
+        realtime.PublishExperimentAsync(
+            new ExperimentUpdated(
+                experiment.Lifecycle.ToString().ToLowerInvariant(),
+                experiment.Allocations
+                    .Select(allocation => new ExperimentAllocationUpdated(
+                        allocation.PromptVersion,
+                        allocation.Percentage))
+                    .ToArray(),
+                experiment.UpdatedAt),
+            cancellationToken);
 
     private async Task<IReadOnlyList<ExperimentAllocation>> ValidateAllocationsAsync(
         ExperimentCommand command,

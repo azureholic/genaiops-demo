@@ -2,6 +2,7 @@ using System.Text.Json;
 using GenAIOps.Application.Chat;
 using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Persistence;
+using GenAIOps.Application.Realtime;
 using GenAIOps.Application.Shadow;
 using GenAIOps.Domain.Records;
 
@@ -89,8 +90,12 @@ public sealed class GatewayContinuousEvaluationProvider(
 public sealed class ContinuousEvaluationRunner(
     IContinuousEvaluationProvider provider,
     IRepository<ShadowEvaluationRecord> evaluations,
-    ContinuousEvaluationOptions options) : IContinuousEvaluationRunner
+    ContinuousEvaluationOptions options,
+    IRealtimePublisher? realtimePublisher = null) : IContinuousEvaluationRunner
 {
+    private readonly IRealtimePublisher realtime =
+        realtimePublisher ?? NoOpRealtimePublisher.Instance;
+
     public async Task<int> RunAsync(
         string registryId,
         DateTimeOffset scheduledAt,
@@ -145,8 +150,18 @@ public sealed class ContinuousEvaluationRunner(
                     AssignedPromptVersion: promptVersion);
                 try
                 {
-                    await evaluations.CreateAsync(record, cancellationToken);
+                    StoredItem<ShadowEvaluationRecord> stored =
+                        await evaluations.CreateAsync(record, cancellationToken);
                     created++;
+                    await realtime.PublishEvaluationAsync(
+                        new EvaluationUpdated(
+                            stored.Value.ProductionPromptVersion,
+                            stored.Value.CandidatePromptVersion,
+                            "completed",
+                            stored.Value.Scores,
+                            stored.Value.CandidateLatencyMilliseconds,
+                            stored.Value.CompletedAt!.Value),
+                        cancellationToken);
                 }
                 catch (RecordConflictException)
                 {

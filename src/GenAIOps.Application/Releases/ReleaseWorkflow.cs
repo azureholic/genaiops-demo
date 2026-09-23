@@ -3,6 +3,7 @@ using System.Text;
 using GenAIOps.Application.Metrics;
 using GenAIOps.Application.Observability;
 using GenAIOps.Application.Persistence;
+using GenAIOps.Application.Realtime;
 using GenAIOps.Application.Registry;
 using GenAIOps.Domain.Records;
 using GenAIOps.Domain.Registry;
@@ -115,8 +116,12 @@ public sealed class ReleaseWorkflowService(
     IMetricsQueryService metrics,
     IRepository<ReleaseRecord> releases,
     IRepository<ReleaseCommandRecord> commands,
-    QualityGateOptions gates) : IReleaseWorkflowService
+    QualityGateOptions gates,
+    IRealtimePublisher? realtimePublisher = null) : IReleaseWorkflowService
 {
+    private readonly IRealtimePublisher realtime =
+        realtimePublisher ?? NoOpRealtimePublisher.Instance;
+
     public async Task<ReleaseWorkflowResult> PromoteAsync(
         string version,
         ReleaseCommand command,
@@ -128,6 +133,10 @@ public sealed class ReleaseWorkflowService(
         {
             ReleaseWorkflowResult result =
                 await PromoteCoreAsync(version, command, cancellationToken);
+            if (!result.Replayed)
+            {
+                await PublishAsync(result.Release, cancellationToken);
+            }
             operation.Complete(
                 "success",
                 lifecycle: result.Release.Lifecycle.ToString().ToLowerInvariant());
@@ -282,6 +291,10 @@ public sealed class ReleaseWorkflowService(
         try
         {
             ReleaseWorkflowResult result = await RollbackCoreAsync(command, cancellationToken);
+            if (!result.Replayed)
+            {
+                await PublishAsync(result.Release, cancellationToken);
+            }
             operation.SetPromptVersion(result.Release.PromptVersion);
             operation.Complete(
                 "success",
@@ -294,6 +307,15 @@ public sealed class ReleaseWorkflowService(
             throw;
         }
     }
+
+    private Task PublishAsync(ReleaseRecord release, CancellationToken cancellationToken) =>
+        realtime.PublishReleaseAsync(
+            new ReleaseUpdated(
+                release.Operation.ToString().ToLowerInvariant(),
+                release.PromptVersion,
+                release.Lifecycle.ToString().ToLowerInvariant(),
+                release.CreatedAt),
+            cancellationToken);
 
     private async Task<ReleaseWorkflowResult> RollbackCoreAsync(
         ReleaseCommand command,
