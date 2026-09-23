@@ -1,0 +1,11 @@
+{
+  "$schema": "../../Schemas/prompt-metadata.schema.json",
+  "version": "v1",
+  "description": "Standard support prompt",
+  "expectedMetrics": {
+    "taskAdherence": 82,
+    "groundedness": 89,
+    "toolAccuracy": 84
+  },
+  "intentionallyPoor": false
+}

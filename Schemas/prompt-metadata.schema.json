@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://genaiops.demo/schemas/prompt-metadata.schema.json",
+  "title": "Prompt metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "version",
+    "description",
+    "expectedMetrics",
+    "intentionallyPoor"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "../../Schemas/prompt-metadata.schema.json"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^v[1-9][0-9]*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expectedMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "taskAdherence",
+        "groundedness",
+        "toolAccuracy"
+      ],
+      "properties": {
+        "taskAdherence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "groundedness": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "toolAccuracy": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "intentionallyPoor": {
+      "type": "boolean"
+    }
+  }
+}

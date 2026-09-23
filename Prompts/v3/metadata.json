@@ -1,0 +1,11 @@
+{
+  "$schema": "../../Schemas/prompt-metadata.schema.json",
+  "version": "v3",
+  "description": "Intentionally poor support prompt",
+  "expectedMetrics": {
+    "taskAdherence": 72,
+    "groundedness": 75,
+    "toolAccuracy": 58
+  },
+  "intentionallyPoor": true
+}

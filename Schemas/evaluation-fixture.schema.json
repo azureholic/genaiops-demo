@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://genaiops.demo/schemas/evaluation-fixture.schema.json",
+  "title": "Support evaluation fixture",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "id",
+    "category",
+    "userMessage",
+    "promptVersions",
+    "expected"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "../Schemas/evaluation-fixture.schema.json"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "userMessage": {
+      "type": "string",
+      "minLength": 1
+    },
+    "promptVersions": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v[1-9][0-9]*$"
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "responseContains",
+        "requiredTool",
+        "shouldAskClarifyingQuestion"
+      ],
+      "properties": {
+        "responseContains": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "requiredTool": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shouldAskClarifyingQuestion": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
